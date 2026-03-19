@@ -7,7 +7,7 @@
 
 Self-hosted modular Docker stack for AI — Ollama, Open WebUI, and optional modules for workflow automation, speech-to-text, wikis, SSO, and more.
 
-> **Early stage** — Ancroo Stack is under active development. The base installation runs on HTTP without authentication and is intended for local/trusted networks only. SSL and SSO modules exist but are experimental — do not expose to the public internet without additional security measures.
+> **Phase 0 (Beta)** — The base installation runs on HTTP without authentication and is intended for local/trusted networks only. SSL and SSO modules exist but are experimental. See the [Ancroo Roadmap](https://github.com/ancroo/ancroo/blob/main/ROADMAP.md) for the security path forward.
 
 ## Architecture
 
