@@ -95,7 +95,7 @@ print_success "GPU: ${WIZARD_GPU_MODE}"
 case "$WIZARD_GPU_MODE" in
     nvidia) WIZARD_BACKENDS="cuda" ;;
     rocm)   WIZARD_BACKENDS="rocm" ;;
-    *)      WIZARD_BACKENDS="cuda" ;;
+    *)      WIZARD_BACKENDS="cpu" ;;
 esac
 
 # --- Ollama model ---

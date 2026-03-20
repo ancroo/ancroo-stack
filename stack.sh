@@ -307,6 +307,13 @@ cmd_gpu() {
         update_env_var "HSA_OVERRIDE_GFX_VERSION" ""
     fi
 
+    # Update Speaches image tag based on GPU mode
+    if [[ "$new_mode" == "nvidia" ]]; then
+        update_env_var "SPEACHES_IMAGE_TAG" "latest-gpu"
+    else
+        update_env_var "SPEACHES_IMAGE_TAG" "latest-cpu"
+    fi
+
     rebuild_compose
 
     print_step "Restarting containers..."

@@ -235,6 +235,7 @@ ADMINER_PORT="8081"
 
 # STT
 SPEACHES_PORT="8100"
+SPEACHES_IMAGE_TAG="$(if [[ "$gpu_mode" == "nvidia" ]]; then echo "latest-gpu"; else echo "latest-cpu"; fi)"
 WHISPER_ROCM_PORT="8002"
 EOF
 

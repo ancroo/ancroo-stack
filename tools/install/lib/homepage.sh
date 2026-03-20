@@ -24,16 +24,20 @@ load_module_env() {
 }
 
 # Build services.yaml with all stack services
+# Homepage expects exactly one "- Apps:" and one "- Infrastructure:" entry.
 # Usage: build_homepage_services
 build_homepage_services() {
     local homepage_dir="$PROJECT_ROOT/data/homepage"
     local output_file="$homepage_dir/services.yaml"
 
     # Load env defaults for variable substitution
+    # Note: only export port/host vars needed by envsubst — NOT COMPOSE_FILE,
+    # which would leak into subprocesses and override .env updates by module installers.
     if [[ -f "$PROJECT_ROOT/.env" ]]; then
         set -a
         source "$PROJECT_ROOT/.env"
         set +a
+        unset COMPOSE_FILE
     fi
 
     # Set defaults for port variables
@@ -42,42 +46,94 @@ build_homepage_services() {
     export BOOKSTACK_PORT="${BOOKSTACK_PORT:-8875}"
     export SPEACHES_PORT="${SPEACHES_PORT:-8100}"
     export WHISPER_ROCM_PORT="${WHISPER_ROCM_PORT:-8002}"
+    export ANCROO_PORT="${ANCROO_PORT:-8900}"
+    export ANCROO_RUNNER_PORT="${ANCROO_RUNNER_PORT:-8510}"
 
     mkdir -p "$homepage_dir"
 
-    # Build complete services.yaml from all snippets
-    local temp_file
-    temp_file=$(mktemp)
-
-    echo "---" > "$temp_file"
-
-    # Core services
-    local core_snippet="$PROJECT_ROOT/tools/config/homepage/homepage.yml"
-    if [[ -f "$core_snippet" ]]; then
-        grep -v '^#' "$core_snippet" | envsubst >> "$temp_file"
-    fi
-
-    # Base module snippets (always included)
-    # Order: Apps first (bookstack, n8n), then Infrastructure (adminer)
-    for snippet_file in \
-        "$PROJECT_ROOT/tools/config/homepage/bookstack.yml" \
-        "$PROJECT_ROOT/tools/config/homepage/n8n.yml" \
-        "$PROJECT_ROOT/tools/config/homepage/adminer.yml"; do
-        if [[ -f "$snippet_file" ]]; then
-            echo "" >> "$temp_file"
-            grep -v '^#' "$snippet_file" | envsubst >> "$temp_file"
-        fi
-    done
-
-    # STT (based on STT_ENGINE)
+    # Determine STT snippet
     local stt_engine="${STT_ENGINE:-speaches}"
-    local stt_snippet="$PROJECT_ROOT/tools/config/homepage/${stt_engine}.yml"
-    if [[ -f "$stt_snippet" ]]; then
-        echo "" >> "$temp_file"
-        grep -v '^#' "$stt_snippet" | envsubst >> "$temp_file"
+
+    # Build services.yaml as a single merged document
+    # Homepage requires exactly one list entry per group
+    cat << YAML | envsubst > "$output_file"
+---
+- Apps:
+    - Open WebUI:
+        icon: sh-open-webui
+        href: http://${HOST_IP}:8080
+        description: LLM Chat Interface + RAG
+        siteMonitor: http://open-webui:8080
+        server: local
+        container: open-webui
+    - BookStack:
+        icon: mdi-book-open-page-variant
+        href: http://${HOST_IP}:${BOOKSTACK_PORT}
+        description: Knowledge Base / Wiki
+        siteMonitor: http://bookstack:80/status
+        server: local
+        container: bookstack
+    - n8n:
+        icon: mdi-sitemap
+        href: http://${HOST_IP}:${N8N_PORT}
+        description: Workflow Automation
+        siteMonitor: http://n8n:5678
+        server: local
+        container: n8n
+    - Ancroo Backend:
+        icon: mdi-anchor
+        href: http://${HOST_IP}:${ANCROO_PORT}/admin
+        description: AI Workflow Backend
+        siteMonitor: http://ancroo-backend:8000/health
+        server: local
+        container: ancroo-backend
+- Infrastructure:
+    - Ollama:
+        icon: sh-ollama
+        href: http://${HOST_IP}:11434
+        description: LLM Backend API
+        siteMonitor: http://ollama:11434
+        server: local
+        container: ollama
+    - Adminer:
+        icon: mdi-database
+        href: http://${HOST_IP}:${ADMINER_PORT}
+        description: Database Management UI
+        siteMonitor: http://adminer:8080
+        server: local
+        container: adminer
+    - Ancroo Runner:
+        icon: mdi-play-circle-outline
+        href: http://${HOST_IP}:${ANCROO_RUNNER_PORT}/docs
+        description: Script Runner API
+        siteMonitor: http://ancroo-runner:8000/health
+        server: local
+        container: ancroo-runner
+YAML
+
+    # Append STT entry to Infrastructure group
+    if [[ "$stt_engine" == "whisper-rocm" ]]; then
+        cat << YAML | envsubst >> "$output_file"
+    - Whisper ROCm:
+        icon: mdi-microphone
+        href: http://${HOST_IP}:${WHISPER_ROCM_PORT}/docs
+        description: Speech-to-Text (AMD ROCm GPU)
+        siteMonitor: http://whisper-rocm:8000/health
+        server: local
+        container: whisper-rocm
+YAML
+    else
+        cat << YAML | envsubst >> "$output_file"
+    - Speaches:
+        icon: mdi-microphone
+        href: http://${HOST_IP}:${SPEACHES_PORT}
+        description: Speech-to-Text Service (Whisper)
+        siteMonitor: http://speaches:8000
+        server: local
+        container: speaches
+YAML
     fi
 
-    mv "$temp_file" "$output_file"
     chmod 644 "$output_file"
 }
 

@@ -1,6 +1,6 @@
 services:
   speaches:
-    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    image: ghcr.io/speaches-ai/speaches:${SPEACHES_IMAGE_TAG:-latest-cpu}
     container_name: speaches
     restart: unless-stopped
     ports:
