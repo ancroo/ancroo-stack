@@ -76,7 +76,7 @@ create_homepage_static_configs() {
     # settings.yaml
     cat > "$homepage_dir/settings.yaml" << 'EOF'
 ---
-title: ancroo-stack
+title: Ancroo
 theme: dark
 color: slate
 headerStyle: clean
@@ -96,7 +96,7 @@ layout:
     columns: 3
   Administration:
     style: row
-    columns: 5
+    columns: 3
 EOF
 
     # docker.yaml
@@ -132,6 +132,87 @@ setup_homepage() {
 
     create_homepage_static_configs
     build_homepage_services
+    copy_homepage_assets
 
     print_success "Homepage configured"
+}
+
+# Copy branding assets (custom CSS/JS with embedded logo) to homepage config
+# Usage: copy_homepage_assets
+copy_homepage_assets() {
+    local homepage_dir="$PROJECT_ROOT/data/homepage"
+    local logo_file="$PROJECT_ROOT/tools/config/homepage/images/ancroo-128.png"
+
+    # Generate custom.css for branding
+    cat > "$homepage_dir/custom.css" << 'CSSEOF'
+/* Ancroo Homepage Branding */
+
+#ancroo-branding {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem 0 1rem 0;
+}
+
+#ancroo-branding img {
+  height: 4rem;
+  width: 4rem;
+  border-radius: 0.75rem;
+  filter: drop-shadow(0 4px 12px rgba(74, 158, 218, 0.4));
+}
+
+#ancroo-branding span {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, #6bb5e8 0%, #3a8fd4 40%, #1e5a8a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: none;
+}
+CSSEOF
+
+    # Generate custom.js with embedded base64 logo
+    if [[ -f "$logo_file" ]]; then
+        local logo_b64
+        logo_b64=$(base64 -w0 "$logo_file")
+        cat > "$homepage_dir/custom.js" << JSEOF
+// Ancroo Homepage Branding — inject anchor logo + title above services
+(function() {
+  var LOGO_B64 = "${logo_b64}";
+
+  function injectBranding() {
+    var wrapper = document.getElementById("inner_wrapper");
+    if (!wrapper || document.getElementById("ancroo-branding")) return;
+
+    var brandDiv = document.createElement("div");
+    brandDiv.id = "ancroo-branding";
+
+    var img = document.createElement("img");
+    img.src = "data:image/png;base64," + LOGO_B64;
+    img.alt = "Ancroo";
+
+    var span = document.createElement("span");
+    span.textContent = "Ancroo";
+
+    brandDiv.appendChild(img);
+    brandDiv.appendChild(span);
+
+    wrapper.insertBefore(brandDiv, wrapper.firstChild);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", injectBranding);
+  } else {
+    injectBranding();
+  }
+
+  new MutationObserver(function() {
+    if (!document.getElementById("ancroo-branding")) injectBranding();
+  }).observe(document.body, { childList: true, subtree: true });
+})();
+JSEOF
+    fi
 }
