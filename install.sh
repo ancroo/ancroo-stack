@@ -172,6 +172,11 @@ ENABLE_BACKEND=false
 ENABLE_RUNNER=false
 ENABLE_EXTENSION=false
 
+# In non-interactive mode, ANCROO_CLONE_PROJECTS=1 enables auto-cloning
+_should_clone() {
+    [[ -n "${ANCROO_CLONE_PROJECTS:-}" ]] && [[ "$ANCROO_CLONE_PROJECTS" == "1" ]] && command -v git &>/dev/null
+}
+
 if [[ -d "$BACKEND_DIR" ]]; then
     ENABLE_BACKEND=true
     print_success "Ancroo Backend: found at ${BACKEND_DIR}"
@@ -185,6 +190,14 @@ elif [[ -z "${ANCROO_NONINTERACTIVE:-}" ]] && command -v git &>/dev/null; then
         else
             print_warning "Failed to clone ancroo-backend — skipping"
         fi
+    fi
+elif _should_clone; then
+    print_step "Cloning ancroo-backend..."
+    if git clone https://github.com/ancroo/ancroo-backend.git "$BACKEND_DIR" 2>/dev/null; then
+        ENABLE_BACKEND=true
+        print_success "Ancroo Backend cloned"
+    else
+        print_warning "Failed to clone ancroo-backend — skipping"
     fi
 else
     print_info "Ancroo Backend: not found (${BACKEND_DIR}) — skipping"
@@ -203,6 +216,14 @@ elif [[ -z "${ANCROO_NONINTERACTIVE:-}" ]] && command -v git &>/dev/null; then
             print_warning "Failed to clone ancroo-runner — skipping"
         fi
     fi
+elif _should_clone; then
+    print_step "Cloning ancroo-runner..."
+    if git clone https://github.com/ancroo/ancroo-runner.git "$RUNNER_DIR" 2>/dev/null; then
+        ENABLE_RUNNER=true
+        print_success "Ancroo Runner cloned"
+    else
+        print_warning "Failed to clone ancroo-runner — skipping"
+    fi
 else
     print_info "Ancroo Runner: not found (${RUNNER_DIR}) — skipping"
 fi
@@ -219,6 +240,14 @@ elif [[ -z "${ANCROO_NONINTERACTIVE:-}" ]] && command -v git &>/dev/null; then
         else
             print_warning "Failed to clone ancroo-web — skipping"
         fi
+    fi
+elif _should_clone; then
+    print_step "Cloning ancroo-web..."
+    if git clone https://github.com/ancroo/ancroo-web.git "$WEB_DIR" 2>/dev/null; then
+        ENABLE_EXTENSION=true
+        print_success "Ancroo Extension cloned"
+    else
+        print_warning "Failed to clone ancroo-web — skipping"
     fi
 else
     print_info "Ancroo Extension: not found (${WEB_DIR}) — skipping"
@@ -307,6 +336,21 @@ if $EXISTING_INSTALL; then
         print_step "Switching GPU mode..."
         bash "$PROJECT_ROOT/stack.sh" gpu "$WIZARD_GPU_MODE"
     fi
+
+    # Ensure n8n database exists
+    n8n_db="${N8N_DB:-ancroo_n8n}"
+    if docker ps --format '{{.Names}}' | grep -q '^postgres$'; then
+        if ! docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -lqt 2>/dev/null | grep -qw "$n8n_db"; then
+            docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -c "CREATE DATABASE ${n8n_db};" 2>/dev/null || true
+        fi
+    fi
+
+    # Ensure n8n API key exists
+    _existing_n8n_key=$(grep "^ANCROO_N8N_API_KEY=" "$PROJECT_ROOT/.env" 2>/dev/null | sed 's/^[^=]*=//;s/^"//;s/"$//')
+    if [[ -z "$_existing_n8n_key" ]] || [[ "$_existing_n8n_key" == CHANGE_ME* ]]; then
+        print_step "Provisioning n8n API key..."
+        bash "$PROJECT_ROOT/tools/install/lib/n8n-provision.sh" "$PROJECT_ROOT"
+    fi
 else
     print_header "Base Installation"
 
@@ -378,7 +422,7 @@ else
     done
 
     # Ensure n8n database exists (init script only runs on first PG start)
-    local n8n_db="${N8N_DB:-ancroo_n8n}"
+    n8n_db="${N8N_DB:-ancroo_n8n}"
     if ! docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -lqt 2>/dev/null | grep -qw "$n8n_db"; then
         docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -c "CREATE DATABASE ${n8n_db};" 2>/dev/null || true
     fi

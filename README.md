@@ -114,6 +114,7 @@ ANCROO_GPU_MODE=rocm ANCROO_OLLAMA_MODEL=mistral ANCROO_NONINTERACTIVE=1 bash in
 | `ANCROO_OLLAMA_MODEL`    | model name, `none`, empty           | interactive prompt |
 | `ANCROO_STT_ENGINE`      | `speaches`, `whisper-rocm`          | auto (based on GPU)|
 | `ANCROO_NONINTERACTIVE`  | set to skip all prompts             | —                  |
+| `ANCROO_CLONE_PROJECTS`  | `1` to auto-clone backend/runner/web| —                  |
 | `ANCROO_FORCE_REINSTALL` | `1` to overwrite .env               | —                  |
 
 ## GPU Support

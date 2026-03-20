@@ -54,48 +54,50 @@ write_rocm_gpu_env() {
     local gfx_version
     gfx_version=$(detect_amd_gpu_arch)
 
+    # Always write ROCm env vars to suppress Docker Compose warnings
+    # about unset variables referenced in compose.gpu-rocm.yml
+    local ollama_tag=""
+    local hip_devices=""
+    local flash_attention=""
+    local hsa_override=""
+
     if [[ -z "$gfx_version" ]]; then
         print_warning "No AMD GPU detected — ROCm will run in CPU fallback mode"
-        return
+    else
+        # gfx_target_version format: MMPPP (e.g. 110501 = gfx1151, 110000 = gfx1100)
+        case "$gfx_version" in
+            110501|1151|110500|1105)
+                # gfx1151 (RDNA 4 / Strix Halo) or gfx1105 (RDNA 3 iGPU)
+                # ROCm 7.x supports gfx1151 natively. The stable ollama:rocm tag ships ROCm 6.x which crashes.
+                print_info "GPU: gfx${gfx_version} (RDNA 4 iGPU) detected — using ROCm 7.x backend"
+                ollama_tag="0.17.8-rc1-rocm"
+                hip_devices="0"
+                flash_attention="true"
+                ;;
+            110000|110100|110200|1100|1101|1102)
+                print_info "GPU: RDNA 3 detected — using native HIP backend"
+                ;;
+            103000|1030)
+                print_info "GPU: RDNA 2 detected — using native HIP backend"
+                ;;
+            90800|90a00|94200|95000|908|90a|942|950)
+                print_info "GPU: AMD Instinct detected — using native HIP backend"
+                ;;
+            *)
+                print_warning "GPU architecture $gfx_version not explicitly supported"
+                print_warning "HIP will be attempted — if issues occur, set HSA_OVERRIDE_GFX_VERSION in .env"
+                ;;
+        esac
     fi
 
-    # gfx_target_version format: MMPPP (e.g. 110501 = gfx1151, 110000 = gfx1100)
-    case "$gfx_version" in
-        110501|1151|110500|1105)
-            # gfx1151 (RDNA 4 / Strix Halo) or gfx1105 (RDNA 3 iGPU)
-            # ROCm 7.x supports gfx1151 natively. The stable ollama:rocm tag ships ROCm 6.x which crashes.
-            # Pin to a ROCm 7.x image until the stable tag catches up.
-            # IMPORTANT: after pulling models, patch each modelfile with PARAMETER num_gpu 99
-            # See: modules/gpu-rocm/README.md
-            print_info "GPU: gfx${gfx_version} (RDNA 4 iGPU) detected — using ROCm 7.x backend"
-            cat >> "$PROJECT_ROOT/.env" << 'GPUEOF'
+    cat >> "$PROJECT_ROOT/.env" << EOF
 
-# Ollama GPU (auto-detected: gfx1151 / RDNA 4 — ROCm 7.x mode)
-# Update OLLAMA_IMAGE_TAG to "rocm" once the stable tag ships ROCm 7.x
-# IMPORTANT: set num_gpu=99 in Open WebUI (Admin → Settings → Models → Default Model Settings)
-#            or patch each modelfile — see modules/gpu-rocm/README.md
-OLLAMA_IMAGE_TAG="0.17.8-rc1-rocm"
-HIP_VISIBLE_DEVICES="0"
-OLLAMA_FLASH_ATTENTION="true"
-GPUEOF
-            ;;
-        110000|110100|110200|1100|1101|1102)
-            # RDNA 3 (discrete) — native HIP support
-            print_info "GPU: RDNA 3 detected — using native HIP backend"
-            ;;
-        103000|1030)
-            # RDNA 2 — native HIP support
-            print_info "GPU: RDNA 2 detected — using native HIP backend"
-            ;;
-        90800|90a00|94200|95000|908|90a|942|950)
-            # MI-series (data center) — native HIP support
-            print_info "GPU: AMD Instinct detected — using native HIP backend"
-            ;;
-        *)
-            print_warning "GPU architecture $gfx_version not explicitly supported"
-            print_warning "HIP will be attempted — if issues occur, set HSA_OVERRIDE_GFX_VERSION in .env"
-            ;;
-    esac
+# ROCm GPU configuration (auto-detected)
+OLLAMA_IMAGE_TAG="${ollama_tag}"
+HIP_VISIBLE_DEVICES="${hip_devices}"
+OLLAMA_FLASH_ATTENTION="${flash_attention}"
+HSA_OVERRIDE_GFX_VERSION="${hsa_override}"
+EOF
 }
 
 create_base_env() {
