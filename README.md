@@ -77,7 +77,6 @@ Extend the stack with `./module.sh enable <module>...`. Dependencies are resolve
 | [ancroo-backend](modules/ancroo-backend/) | AI workflow backend             | 8900    | n8n          | [README](modules/ancroo-backend/README.md)          |
 | [speaches](modules/speaches/)           | Speech-to-Text (NVIDIA CUDA)      | 8100    | —            | [README](modules/speaches/README.md)                |
 | [whisper-rocm](modules/whisper-rocm/)   | Speech-to-Text (AMD GPU)          | 8002    | —            | [README](modules/whisper-rocm/README.md)            |
-| [service-tools](modules/service-tools/) | Reusable HTTP API tools           | 8500    | speaches     | [README](modules/service-tools/README.md)           |
 | [adminer](modules/adminer/)             | Database management UI            | 8081    | —            | [README](modules/adminer/README.md)                 |
 | [ssl](modules/ssl/)                     | HTTPS via Traefik + Let's Encrypt | 80, 443 | —            | [README](modules/ssl/README.md) ⚠️ _experimental_   |
 | [sso](modules/sso/)                     | Single Sign-On (Keycloak)         | —       | ssl, valkey  | [README](modules/sso/README.md) ⚠️ _experimental_   |

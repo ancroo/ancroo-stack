@@ -1,4 +1,0 @@
-services:
-  service-tools:
-    ports:
-      - "${SERVICE_TOOLS_PORT:-8500}:8000"

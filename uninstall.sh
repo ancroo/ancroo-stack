@@ -81,7 +81,7 @@ KNOWN_CONTAINERS=(
     n8n adminer valkey
     speaches whisper-rocm
     bookstack bookstack-db
-    ancroo-backend service-tools
+    ancroo-backend
     traefik keycloak oauth2-proxy acme
     activepieces
 )

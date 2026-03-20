@@ -43,7 +43,7 @@ The stack uses three image strategies:
 |----------|-----|---------|---------------|
 | **Pinned** (version tag) | Breaking-change protection for infrastructure | `traefik:v3.6`, `keycloak:26.1`, `oauth2-proxy:v7.14.2`, `acme.sh:3.1.1` | Change tag in compose YAML, then pull |
 | **Floating** (`:latest`) | Always get newest features for AI/user-facing services | `ollama`, `open-webui`, `speaches`, `n8n` | `docker compose pull` |
-| **Locally built** | Custom code, no registry image | `whisper-rocm`, `service-tools`, `ancroo-backend` | `docker compose build` |
+| **Locally built** | Custom code, no registry image | `whisper-rocm`, `ancroo-backend` | `docker compose build` |
 
 Databases use major-version pins (`pgvector:pg16`, `mariadb:11`) to prevent schema-breaking upgrades while still receiving patch updates.
 
@@ -117,7 +117,6 @@ Optional modules (when enabled):
 | Speaches | `https://speaches.<domain>` | `SPEACHES_DOMAIN` |
 | Whisper ROCm | `https://whisper-rocm.<domain>` | `WHISPER_ROCM_DOMAIN` |
 | Ancroo | `https://ancroo.<domain>` | `ANCROO_DOMAIN` |
-| Service Tools | `https://service-tools.<domain>` | `SERVICE_TOOLS_DOMAIN` |
 | Keycloak (SSO) | `https://auth.<domain>` | `KEYCLOAK_DOMAIN` |
 
 `<domain>` is the `BASE_DOMAIN` set during `./module.sh enable ssl`. See [ssl module docs](../modules/ssl/README.md).
