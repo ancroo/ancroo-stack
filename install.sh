@@ -172,60 +172,40 @@ ENABLE_BACKEND=false
 ENABLE_RUNNER=false
 ENABLE_EXTENSION=false
 
-# In non-interactive mode, ANCROO_CLONE_PROJECTS=1 enables auto-cloning
+# In non-interactive mode, ANCROO_CLONE_PROJECTS=1 enables auto-cloning (for optional projects)
 _should_clone() {
     [[ -n "${ANCROO_CLONE_PROJECTS:-}" ]] && [[ "$ANCROO_CLONE_PROJECTS" == "1" ]] && command -v git &>/dev/null
 }
 
+# Backend and Runner are required parts of the stack (separate repos for licensing)
 if [[ -d "$BACKEND_DIR" ]]; then
     ENABLE_BACKEND=true
     print_success "Ancroo Backend: found at ${BACKEND_DIR}"
-elif [[ -z "${ANCROO_NONINTERACTIVE:-}" ]] && command -v git &>/dev/null; then
-    echo ""
-    if confirm "Clone Ancroo Backend (AI workflow backend)?" "y"; then
-        print_step "Cloning ancroo-backend..."
-        if git clone https://github.com/ancroo/ancroo-backend.git "$BACKEND_DIR" 2>/dev/null; then
-            ENABLE_BACKEND=true
-            print_success "Ancroo Backend cloned"
-        else
-            print_warning "Failed to clone ancroo-backend — skipping"
-        fi
-    fi
-elif _should_clone; then
+else
     print_step "Cloning ancroo-backend..."
     if git clone https://github.com/ancroo/ancroo-backend.git "$BACKEND_DIR" 2>/dev/null; then
         ENABLE_BACKEND=true
         print_success "Ancroo Backend cloned"
     else
-        print_warning "Failed to clone ancroo-backend — skipping"
+        print_error "Failed to clone ancroo-backend — backend is required"
+        print_info "Install git or clone manually: git clone https://github.com/ancroo/ancroo-backend.git ${BACKEND_DIR}"
+        exit 1
     fi
-else
-    print_info "Ancroo Backend: not found (${BACKEND_DIR}) — skipping"
 fi
 
 if [[ -d "$RUNNER_DIR" ]]; then
     ENABLE_RUNNER=true
     print_success "Ancroo Runner: found at ${RUNNER_DIR}"
-elif [[ -z "${ANCROO_NONINTERACTIVE:-}" ]] && command -v git &>/dev/null; then
-    if confirm "Clone Ancroo Runner (script execution engine)?" "y"; then
-        print_step "Cloning ancroo-runner..."
-        if git clone https://github.com/ancroo/ancroo-runner.git "$RUNNER_DIR" 2>/dev/null; then
-            ENABLE_RUNNER=true
-            print_success "Ancroo Runner cloned"
-        else
-            print_warning "Failed to clone ancroo-runner — skipping"
-        fi
-    fi
-elif _should_clone; then
+else
     print_step "Cloning ancroo-runner..."
     if git clone https://github.com/ancroo/ancroo-runner.git "$RUNNER_DIR" 2>/dev/null; then
         ENABLE_RUNNER=true
         print_success "Ancroo Runner cloned"
     else
-        print_warning "Failed to clone ancroo-runner — skipping"
+        print_error "Failed to clone ancroo-runner — runner is required"
+        print_info "Install git or clone manually: git clone https://github.com/ancroo/ancroo-runner.git ${RUNNER_DIR}"
+        exit 1
     fi
-else
-    print_info "Ancroo Runner: not found (${RUNNER_DIR}) — skipping"
 fi
 
 if [[ -d "$WEB_DIR" ]]; then
@@ -325,7 +305,7 @@ fi
 # BASE INSTALLATION
 # ─────────────────────────────────────────────────────────
 if $EXISTING_INSTALL; then
-    print_header "Base Installation — Skipped"
+    print_header "Base Installation — Existing"
     print_info "Existing .env found — using current configuration"
     print_info "To re-install, set ANCROO_FORCE_REINSTALL=1"
 
@@ -337,6 +317,30 @@ if $EXISTING_INSTALL; then
         bash "$PROJECT_ROOT/stack.sh" gpu "$WIZARD_GPU_MODE"
     fi
 
+    # Ensure base services are running (required for backend/runner depends_on)
+    print_step "Ensuring base services are running..."
+    docker compose up -d
+    _base_wait=0
+    while [[ $_base_wait -lt 60 ]]; do
+        _all_up=true
+        for _ctr in postgres n8n; do
+            if ! docker ps --format '{{.Names}}' | grep -q "^${_ctr}$"; then
+                _all_up=false
+                break
+            fi
+        done
+        $_all_up && break
+        sleep 2
+        _base_wait=$((_base_wait + 2))
+    done
+    if $_all_up; then
+        print_success "Base services running"
+    else
+        print_error "Base services failed to start — backend/runner require postgres and n8n"
+        print_info "Check: docker compose logs"
+        exit 1
+    fi
+
     # Ensure n8n database exists
     n8n_db="${N8N_DB:-ancroo_n8n}"
     if docker ps --format '{{.Names}}' | grep -q '^postgres$'; then
@@ -346,7 +350,7 @@ if $EXISTING_INSTALL; then
     fi
 
     # Ensure n8n API key exists
-    _existing_n8n_key=$(grep "^ANCROO_N8N_API_KEY=" "$PROJECT_ROOT/.env" 2>/dev/null | sed 's/^[^=]*=//;s/^"//;s/"$//')
+    _existing_n8n_key=$(grep "^ANCROO_N8N_API_KEY=" "$PROJECT_ROOT/.env" 2>/dev/null | sed 's/^[^=]*=//;s/^"//;s/"$//' || true)
     if [[ -z "$_existing_n8n_key" ]] || [[ "$_existing_n8n_key" == CHANGE_ME* ]]; then
         print_step "Provisioning n8n API key..."
         bash "$PROJECT_ROOT/tools/install/lib/n8n-provision.sh" "$PROJECT_ROOT"
@@ -500,6 +504,14 @@ if $ENABLE_BACKEND; then
     # Pass selected workflow backends
     export ANCROO_BACKENDS_INPUT="$WIZARD_BACKENDS"
 
+    # Set workflows directory (backend compose.yml default is wrong without this)
+    _current_workflows_dir=$(grep "^ANCROO_WORKFLOWS_DIR=" "$PROJECT_ROOT/.env" 2>/dev/null | sed 's/^[^=]*=//;s/^"//;s/"$//' || true)
+    if [[ -z "$_current_workflows_dir" ]]; then
+        if [[ -d "$BACKEND_DIR/workflows" ]]; then
+            update_env_var "ANCROO_WORKFLOWS_DIR" "../ancroo-backend/workflows" "$PROJECT_ROOT/.env"
+        fi
+    fi
+
     if $DEV_MODE; then
         export ANCROO_LOCAL_BUILD="y"
         print_step "Dev mode: building ancroo-backend image from local source..."
@@ -623,6 +635,50 @@ if $ENABLE_EXTENSION; then
                 exit 1
             fi
         fi
+    fi
+fi
+
+# ─────────────────────────────────────────────────────────
+# FINAL SERVICE START
+# ─────────────────────────────────────────────────────────
+
+# Ensure ALL services (base + backend + runner) are running with the final COMPOSE_FILE
+print_header "Starting All Services"
+cd "$PROJECT_ROOT"
+docker compose up -d
+
+# Verify backend/runner containers are actually running (not just created)
+if $ENABLE_BACKEND; then
+    _backend_ok=false
+    for _i in $(seq 1 15); do
+        if docker ps --format '{{.Names}}' | grep -q '^ancroo-backend$'; then
+            _backend_ok=true
+            break
+        fi
+        sleep 2
+    done
+    if $_backend_ok; then
+        print_success "ancroo-backend running"
+    else
+        print_error "ancroo-backend failed to start"
+        print_info "Check: docker compose logs ancroo-backend"
+    fi
+fi
+
+if $ENABLE_RUNNER; then
+    _runner_ok=false
+    for _i in $(seq 1 15); do
+        if docker ps --format '{{.Names}}' | grep -q '^ancroo-runner$'; then
+            _runner_ok=true
+            break
+        fi
+        sleep 2
+    done
+    if $_runner_ok; then
+        print_success "ancroo-runner running"
+    else
+        print_error "ancroo-runner failed to start"
+        print_info "Check: docker compose logs ancroo-runner"
     fi
 fi
 

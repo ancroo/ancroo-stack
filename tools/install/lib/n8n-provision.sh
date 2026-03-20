@@ -108,7 +108,7 @@ if [[ -n "$SETUP_NEEDED" ]]; then
     printf '{"email":"%s","firstName":"Admin","lastName":"Ancroo","password":"%s"}' \
         "$N8N_ADMIN_EMAIL" "$N8N_ADMIN_PASSWORD" > "$TMPDIR/setup.json"
 
-    SETUP_RESP=$(curl -s -X POST "${N8N_URL}/rest/owner/setup" \
+    SETUP_RESP=$(curl -s --max-time 30 -X POST "${N8N_URL}/rest/owner/setup" \
         -H "Content-Type: application/json" \
         -d @"$TMPDIR/setup.json" 2>&1)
 
@@ -133,7 +133,7 @@ fi
 printf '{"emailOrLdapLoginId":"%s","password":"%s"}' \
     "$N8N_ADMIN_EMAIL" "$N8N_ADMIN_PASSWORD" > "$TMPDIR/login.json"
 
-LOGIN_HEADERS=$(curl -s -D - -X POST "${N8N_URL}/rest/login" \
+LOGIN_HEADERS=$(curl -s --max-time 30 -D - -X POST "${N8N_URL}/rest/login" \
     -H "Content-Type: application/json" \
     -d @"$TMPDIR/login.json" \
     -o "$TMPDIR/login_body.txt" 2>&1)
@@ -154,7 +154,7 @@ if [[ -z "$AUTH_COOKIE" ]]; then
 fi
 
 # ─── Step 3: Create API key (10 year expiry) ──────────────
-EXISTING_KEYS=$(curl -s "${N8N_URL}/rest/api-keys" \
+EXISTING_KEYS=$(curl -s --max-time 30 "${N8N_URL}/rest/api-keys" \
     -H "Cookie: n8n-auth=${AUTH_COOKIE}" 2>&1)
 EXISTING_ID=$(echo "$EXISTING_KEYS" | python3 -c "
 import json, sys
@@ -163,21 +163,21 @@ for k in json.load(sys.stdin).get('data', []):
         print(k['id']); break
 " 2>/dev/null || true)
 if [[ -n "$EXISTING_ID" ]]; then
-    curl -s -X DELETE "${N8N_URL}/rest/api-keys/${EXISTING_ID}" \
+    curl -s --max-time 30 -X DELETE "${N8N_URL}/rest/api-keys/${EXISTING_ID}" \
         -H "Cookie: n8n-auth=${AUTH_COOKIE}" >/dev/null 2>&1
 fi
 
 EXPIRES_AT=$(( $(date +%s) + 315360000 ))
 
-printf '{"label":"ancroo-backend","scopes":["workflow:create","workflow:read","workflow:update","workflow:delete","workflow:list","workflow:execute"],"expiresAt":%d}' \
+printf '{"label":"ancroo-backend","scopes":["workflow:create","workflow:read","workflow:update","workflow:delete","workflow:list"],"expiresAt":%d}' \
     "$EXPIRES_AT" > "$TMPDIR/apikey.json"
 
-APIKEY_RESP=$(curl -s -X POST "${N8N_URL}/rest/api-keys" \
+APIKEY_RESP=$(curl -s --max-time 30 -X POST "${N8N_URL}/rest/api-keys" \
     -H "Content-Type: application/json" \
     -H "Cookie: n8n-auth=${AUTH_COOKIE}" \
     -d @"$TMPDIR/apikey.json" 2>&1)
 
-RAW_KEY=$(echo "$APIKEY_RESP" | grep -o '"rawApiKey":"[^"]*"' | cut -d'"' -f4)
+RAW_KEY=$(echo "$APIKEY_RESP" | grep -o '"rawApiKey":"[^"]*"' | cut -d'"' -f4 || true)
 
 if [[ -z "$RAW_KEY" ]]; then
     print_warning "Failed to create n8n API key — create manually in n8n Settings"
