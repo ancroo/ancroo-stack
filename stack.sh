@@ -309,7 +309,7 @@ cmd_gpu() {
 
     # Update Speaches image tag based on GPU mode
     if [[ "$new_mode" == "nvidia" ]]; then
-        update_env_var "SPEACHES_IMAGE_TAG" "latest-gpu"
+        update_env_var "SPEACHES_IMAGE_TAG" "latest-cuda"
     else
         update_env_var "SPEACHES_IMAGE_TAG" "latest-cpu"
     fi
