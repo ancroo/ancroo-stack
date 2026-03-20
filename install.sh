@@ -155,7 +155,11 @@ fi
 if [[ -n "${ANCROO_STT_MODULES:-}" ]]; then
     _stt_choice="$ANCROO_STT_MODULES"
 elif [[ -n "${ANCROO_NONINTERACTIVE:-}" ]]; then
-    _stt_choice="1"
+    if [[ "$WIZARD_GPU_MODE" == "rocm" ]]; then
+        _stt_choice="2"
+    else
+        _stt_choice="1"
+    fi
 else
     echo ""
     print_step "STT modules (Speech-to-Text)"
@@ -164,13 +168,19 @@ else
     if [[ "$WIZARD_GPU_MODE" == "rocm" ]]; then
         echo "    2) Whisper ROCm     — AMD GPU-accelerated                 (port 8002)"
         echo ""
-        echo -ne "  Select STT modules (comma-separated, e.g. 1,2 or 'all') [1]: "
+        echo -ne "  Select STT modules (comma-separated, e.g. 1,2 or 'all') [2]: "
     else
         echo ""
         echo -ne "  Select STT modules [1]: "
     fi
     read -r _stt_choice
-    _stt_choice="${_stt_choice:-1}"
+    if [[ -z "$_stt_choice" ]]; then
+        if [[ "$WIZARD_GPU_MODE" == "rocm" ]]; then
+            _stt_choice="2"
+        else
+            _stt_choice="1"
+        fi
+    fi
 fi
 
 ENABLE_SPEACHES="n"
@@ -192,8 +202,13 @@ fi
 
 # Ensure at least one STT module is selected
 if [[ "$ENABLE_SPEACHES" != "y" && "$ENABLE_WHISPER_ROCM" != "y" ]]; then
-    ENABLE_SPEACHES="y"
-    print_warning "No valid STT module selected — defaulting to Speaches"
+    if [[ "$WIZARD_GPU_MODE" == "rocm" ]]; then
+        ENABLE_WHISPER_ROCM="y"
+        print_warning "No valid STT module selected — defaulting to Whisper ROCm"
+    else
+        ENABLE_SPEACHES="y"
+        print_warning "No valid STT module selected — defaulting to Speaches"
+    fi
 fi
 
 _stt_selected=""
