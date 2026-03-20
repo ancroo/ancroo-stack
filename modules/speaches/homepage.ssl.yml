@@ -1,9 +1,0 @@
-# Speaches Dashboard Widget — SSL mode
-- Speech:
-    - Speaches:
-        icon: mdi-microphone
-        href: https://${SPEACHES_DOMAIN}
-        description: Speech-to-Text Service (Whisper)
-        siteMonitor: http://speaches:8000
-        server: local
-        container: speaches

@@ -10,29 +10,16 @@ All passwords are auto-generated during installation (32+ character random strin
 
 ## Network Exposure
 
-### Base Mode (default)
-
-Services are exposed on individual ports **without TLS encryption**. Use base mode only in trusted networks (home lab, VPN).
-
-### SSL Mode (experimental)
-
-> **Note:** The SSL module is not yet fully implemented and may be incomplete or unstable.
-
-The SSL module adds Traefik with TLS encryption. When enabled, only ports 80 and 443 are exposed with automatic HTTPS redirect. See [ssl module docs](../modules/ssl/README.md).
+Services are exposed on individual ports **without TLS encryption**. Only use in trusted networks (home lab, VPN).
 
 ### Firewall
 
 Restrict access to necessary ports:
 
 ```bash
-# SSL mode (recommended)
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
-
-# Base mode — add ports for enabled modules as needed
 sudo ufw allow 8080/tcp    # Open WebUI
 sudo ufw allow 11434/tcp   # Ollama API
+sudo ufw enable
 ```
 
 ## First User

@@ -23,46 +23,59 @@ load_module_env() {
     fi
 }
 
-# Build services.yaml from core + enabled modules
+# Build services.yaml with all stack services
 # Usage: build_homepage_services
 build_homepage_services() {
     local homepage_dir="$PROJECT_ROOT/data/homepage"
     local output_file="$homepage_dir/services.yaml"
+
+    # Load env defaults for variable substitution
+    if [[ -f "$PROJECT_ROOT/.env" ]]; then
+        set -a
+        source "$PROJECT_ROOT/.env"
+        set +a
+    fi
+
+    # Set defaults for port variables
+    export ADMINER_PORT="${ADMINER_PORT:-8081}"
+    export N8N_PORT="${N8N_PORT:-5678}"
+    export BOOKSTACK_PORT="${BOOKSTACK_PORT:-8875}"
+    export SPEACHES_PORT="${SPEACHES_PORT:-8100}"
+    export WHISPER_ROCM_PORT="${WHISPER_ROCM_PORT:-8002}"
+
+    mkdir -p "$homepage_dir"
+
+    # Build complete services.yaml from all snippets
     local temp_file
     temp_file=$(mktemp)
 
-    # Read enabled modules
-    local enabled_modules=""
-    if [[ -f "$PROJECT_ROOT/.env" ]]; then
-        enabled_modules=$(grep '^ENABLED_MODULES=' "$PROJECT_ROOT/.env" | cut -d= -f2 | tr -d '"')
-    fi
-
-    # Load all module.env files first (for variable defaults)
-    for module in $enabled_modules; do
-        load_module_env "$module"
-    done
-
-    # Start with YAML header
     echo "---" > "$temp_file"
 
-    # Always include core services
+    # Core services
     local core_snippet="$PROJECT_ROOT/tools/config/homepage/homepage.yml"
     if [[ -f "$core_snippet" ]]; then
-        # Skip comment lines, substitute variables, append
         grep -v '^#' "$core_snippet" | envsubst >> "$temp_file"
     fi
 
-    # Add enabled modules
-    for module in $enabled_modules; do
-        local module_snippet="$PROJECT_ROOT/modules/$module/homepage.yml"
-        if [[ -f "$module_snippet" ]]; then
+    # Base module snippets (always included)
+    for snippet_file in \
+        "$PROJECT_ROOT/tools/config/homepage/adminer.yml" \
+        "$PROJECT_ROOT/tools/config/homepage/n8n.yml" \
+        "$PROJECT_ROOT/tools/config/homepage/bookstack.yml"; do
+        if [[ -f "$snippet_file" ]]; then
             echo "" >> "$temp_file"
-            grep -v '^#' "$module_snippet" | envsubst >> "$temp_file"
+            grep -v '^#' "$snippet_file" | envsubst >> "$temp_file"
         fi
     done
 
-    # Write to final location
-    mkdir -p "$homepage_dir"
+    # STT (based on STT_ENGINE)
+    local stt_engine="${STT_ENGINE:-speaches}"
+    local stt_snippet="$PROJECT_ROOT/tools/config/homepage/${stt_engine}.yml"
+    if [[ -f "$stt_snippet" ]]; then
+        echo "" >> "$temp_file"
+        grep -v '^#' "$stt_snippet" | envsubst >> "$temp_file"
+    fi
+
     mv "$temp_file" "$output_file"
     chmod 644 "$output_file"
 }

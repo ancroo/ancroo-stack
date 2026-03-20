@@ -5,7 +5,7 @@
 [![Bash](https://img.shields.io/badge/Bash-4EAA25?logo=gnubash&logoColor=white)](https://www.gnu.org/software/bash/)
 [![Status: Beta](https://img.shields.io/badge/Status-Beta-yellow.svg)]()
 
-Self-hosted modular Docker stack for AI — Ollama, Open WebUI, and optional modules for workflow automation, speech-to-text, wikis, SSO, and more.
+Self-hosted Docker stack for AI — Ollama, Open WebUI, n8n, BookStack, speech-to-text, and more. One installer, everything runs.
 
 > **Phase 0 (Beta)** — The base installation runs on HTTP without authentication and is intended for local/trusted networks only. SSL and SSO modules exist but are experimental. See the [Ancroo Roadmap](https://github.com/ancroo/ancroo/blob/main/ROADMAP.md) for the security path forward.
 
@@ -45,51 +45,60 @@ cd ancroo-stack
 bash install.sh
 ```
 
-The guided installer walks you through GPU selection, STT module choice, and optional components. It also installs the Ancroo Backend and Browser Extension if their repos are present as sibling directories (cloned automatically by the [Ancroo meta-installer](https://github.com/ancroo/ancroo)).
+The guided installer walks you through GPU selection and STT engine choice, and optionally clones companion projects (backend, runner, browser extension).
 
-After installation, your base stack is running:
+After installation, your stack is running:
 
 | Service    | URL                 | Description                              |
 | ---------- | ------------------- | ---------------------------------------- |
 | Open WebUI | `http://<IP>:8080`  | Chat interface with RAG support          |
 | Ollama API | `http://<IP>:11434` | LLM backend (Llama, Mistral, Qwen, etc.) |
 | Homepage   | `http://<IP>:80`    | Service dashboard                        |
+| n8n        | `http://<IP>:5678`  | Workflow automation                      |
+| BookStack  | `http://<IP>:8875`  | Documentation wiki                       |
+| Adminer    | `http://<IP>:8081`  | Database management UI                   |
+| STT        | `http://<IP>:8100`  | Speaches or Whisper-ROCm                 |
 | PostgreSQL | internal            | Shared database with pgvector            |
 
 The first Open WebUI account you create becomes admin.
 
-## Modules
+## Services
 
-Extend the stack with `./module.sh enable <module>...`. Dependencies are resolved automatically.
+All services are included in the base installation — no modules to enable.
+
+| Service | Container | Purpose |
+| ------- | --------- | ------- |
+| PostgreSQL (pgvector) | `postgres` | Shared database |
+| Ollama | `ollama` | Local LLM engine |
+| Open WebUI | `open-webui` | AI chat interface |
+| Homepage | `homepage` | Service dashboard |
+| Adminer | `adminer` | Database admin UI |
+| n8n | `n8n` | Workflow automation |
+| BookStack | `bookstack` + `bookstack-db` | Documentation wiki |
+
+**STT engines** (one is selected during install):
+
+| Engine | Container | GPU Support |
+| ------ | --------- | ----------- |
+| Speaches | `speaches` | CPU, NVIDIA CUDA |
+| Whisper-ROCm | `whisper-rocm` | AMD ROCm |
+
+**Optional companion projects** (cloned during install if desired):
+
+| Project | Container | Purpose |
+| ------- | --------- | ------- |
+| [Ancroo Backend](https://github.com/ancroo/ancroo-backend) | `ancroo-backend` | AI workflow API |
+| [Ancroo Runner](https://github.com/ancroo/ancroo-runner) | `ancroo-runner` | Script execution engine |
+
+## Stack Management
 
 ```bash
-# Single module
-./module.sh enable bookstack
-
-# Multiple modules at once
-./module.sh enable bookstack n8n
+./stack.sh status          # Container status
+./stack.sh verify          # Health checks
+./stack.sh urls            # All service URLs
+./stack.sh gpu <mode>      # Switch GPU (cpu/nvidia/rocm)
+./stack.sh stt <engine>    # Switch STT (speaches/whisper-rocm)
 ```
-
-| Module                                  | Description                       | Port    | Dependencies | Details                                             |
-| --------------------------------------- | --------------------------------- | ------- | ------------ | --------------------------------------------------- |
-| [n8n](modules/n8n/)                     | Workflow automation               | 5678    | —            | [README](modules/n8n/README.md)                     |
-| [bookstack](modules/bookstack/)         | Wiki / knowledge base             | 8875    | —            | [README](modules/bookstack/README.md)               |
-| [ancroo-backend](modules/ancroo-backend/) | AI workflow backend             | 8900    | n8n          | [README](modules/ancroo-backend/README.md)          |
-| [speaches](modules/speaches/)           | Speech-to-Text (NVIDIA CUDA)      | 8100    | —            | [README](modules/speaches/README.md)                |
-| [whisper-rocm](modules/whisper-rocm/)   | Speech-to-Text (AMD GPU)          | 8002    | —            | [README](modules/whisper-rocm/README.md)            |
-| [adminer](modules/adminer/)             | Database management UI            | 8081    | —            | [README](modules/adminer/README.md)                 |
-| [ssl](modules/ssl/)                     | HTTPS via Traefik + Let's Encrypt | 80, 443 | —            | [README](modules/ssl/README.md) ⚠️ _experimental_   |
-| [sso](modules/sso/)                     | Single Sign-On (Keycloak)         | —       | ssl, valkey  | [README](modules/sso/README.md) ⚠️ _experimental_   |
-| [valkey](modules/valkey/)               | In-memory cache (Valkey)          | —       | —            | [README](modules/valkey/README.md), auto-dependency |
-
-> **Note:** Modules marked ⚠️ _experimental_ exist but are not yet fully implemented. They may be incomplete or unstable. The base installation works without them.
-
-Infrastructure modules (set during installation):
-
-| Module     | Description                         |
-| ---------- | ----------------------------------- |
-| gpu-nvidia | NVIDIA CUDA acceleration for Ollama |
-| gpu-rocm   | AMD ROCm acceleration for Ollama    |
 
 ## Non-Interactive Installation
 
@@ -99,14 +108,13 @@ All wizard prompts can be skipped via environment variables:
 ANCROO_GPU_MODE=rocm ANCROO_OLLAMA_MODEL=mistral ANCROO_NONINTERACTIVE=1 bash install.sh
 ```
 
-| Variable                 | Values                     | Default            |
-| ------------------------ | -------------------------- | ------------------ |
-| `ANCROO_GPU_MODE`        | `nvidia`, `rocm`, `cpu`    | interactive prompt |
-| `ANCROO_OLLAMA_MODEL`    | model name, `none`, empty  | interactive prompt |
-| `ANCROO_STT_MODULES`     | `1`, `2`, `1,2`, `all`     | interactive prompt |
-| `ANCROO_BOOKSTACK`       | `y`, `n`                   | interactive prompt |
-| `ANCROO_NONINTERACTIVE`  | set to skip all prompts    | —                  |
-| `ANCROO_FORCE_REINSTALL` | `1` to overwrite .env      | —                  |
+| Variable                 | Values                              | Default            |
+| ------------------------ | ----------------------------------- | ------------------ |
+| `ANCROO_GPU_MODE`        | `nvidia`, `rocm`, `cpu`             | interactive prompt |
+| `ANCROO_OLLAMA_MODEL`    | model name, `none`, empty           | interactive prompt |
+| `ANCROO_STT_ENGINE`      | `speaches`, `whisper-rocm`          | auto (based on GPU)|
+| `ANCROO_NONINTERACTIVE`  | set to skip all prompts             | —                  |
+| `ANCROO_FORCE_REINSTALL` | `1` to overwrite .env               | —                  |
 
 ## GPU Support
 
@@ -125,12 +133,10 @@ bash install.sh
 
 ## Documentation
 
-| Document                               | Content                                                 |
-| -------------------------------------- | ------------------------------------------------------- |
-| [Operations Guide](docs/operations.md) | Installation, module management, updates, backups, URLs |
-| [Security Guide](docs/security.md)     | Network exposure, firewall, credential management       |
-
-Each module has its own README in `modules/<name>/README.md`.
+| Document                               | Content                                            |
+| -------------------------------------- | -------------------------------------------------- |
+| [Operations Guide](docs/operations.md) | Installation, updates, backups, URLs               |
+| [Security Guide](docs/security.md)     | Network exposure, firewall, credential management  |
 
 ## Requirements
 

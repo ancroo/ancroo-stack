@@ -101,60 +101,102 @@ GPUEOF
 create_base_env() {
     local timezone="$1"
     local gpu_mode="$2"
+    local stt_engine="${3:-speaches}"
     local hostname
     hostname=$(detect_local_ip)
     # Export for use in install.sh (Homepage config, summary output)
     DETECTED_HOST_IP="$hostname"
 
+    # Helper: read existing value from .env, strip quotes
+    _old_env() {
+        grep "^${1}=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' || echo ""
+    }
+
+    local has_old_env=false
+    [[ -f "$PROJECT_ROOT/.env" ]] && has_old_env=true
+
     local pg_user="ancroo"
     local pg_pass
     local pg_db="ancroo"
 
-    # Check if PostgreSQL data already exists
-    if [[ -d "$PROJECT_ROOT/data/postgresql" ]] && [[ -n "$(ls -A "$PROJECT_ROOT/data/postgresql" 2>/dev/null)" ]]; then
-        # Try to read existing password from .env
-        if [[ -f "$PROJECT_ROOT/.env" ]]; then
-            local existing_pass
-            existing_pass=$(grep '^POSTGRES_PASSWORD=' "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2-)
-            if [[ -n "$existing_pass" ]]; then
-                pg_pass="$existing_pass"
-                print_info "Using existing PostgreSQL password (data directory present)"
-            fi
+    # Preserve existing credentials when data directories exist
+    if $has_old_env; then
+        local _old_pg_pass
+        _old_pg_pass=$(_old_env POSTGRES_PASSWORD)
+        if [[ -n "$_old_pg_pass" ]]; then
+            pg_pass="$_old_pg_pass"
+            print_info "Preserving existing PostgreSQL password"
         fi
-        # If no existing password found but data exists, warn user
-        if [[ -z "$pg_pass" ]]; then
+    fi
+    if [[ -z "${pg_pass:-}" ]]; then
+        if [[ -d "$PROJECT_ROOT/data/postgresql" ]] && [[ -n "$(ls -A "$PROJECT_ROOT/data/postgresql" 2>/dev/null)" ]]; then
             print_warning "PostgreSQL data exists but no password found in .env!"
             print_warning "Either add the old password to .env or delete data/postgresql"
-            pg_pass=$(generate_password)
         fi
-    else
         pg_pass=$(generate_password)
     fi
-    local webui_secret
-    webui_secret=$(generate_secret_key)
+
     local docker_gid
     docker_gid=$(detect_docker_gid)
 
+    # Preserve or generate secrets
+    local webui_secret
+    if $has_old_env; then webui_secret=$(_old_env WEBUI_SECRET_KEY); fi
+    [[ -z "${webui_secret:-}" ]] && webui_secret=$(generate_secret_key)
+
+    local n8n_encryption_key
+    if $has_old_env; then n8n_encryption_key=$(_old_env N8N_ENCRYPTION_KEY); fi
+    [[ -z "${n8n_encryption_key:-}" ]] && n8n_encryption_key=$(openssl rand -hex 16)
+
+    local bookstack_app_key
+    if $has_old_env; then bookstack_app_key=$(_old_env BOOKSTACK_APP_KEY); fi
+    [[ -z "${bookstack_app_key:-}" ]] && bookstack_app_key="base64:$(openssl rand -base64 32)"
+
+    local bookstack_db_pass
+    if $has_old_env; then bookstack_db_pass=$(_old_env BOOKSTACK_DB_PASSWORD); fi
+    [[ -z "${bookstack_db_pass:-}" ]] && bookstack_db_pass=$(generate_password)
+
+    local bookstack_db_root_pass
+    if $has_old_env; then bookstack_db_root_pass=$(_old_env BOOKSTACK_DB_ROOT_PASSWORD); fi
+    [[ -z "${bookstack_db_root_pass:-}" ]] && bookstack_db_root_pass=$(generate_password)
+
+    local bookstack_admin_email
+    if $has_old_env; then bookstack_admin_email=$(_old_env BOOKSTACK_ADMIN_EMAIL); fi
+    [[ -z "${bookstack_admin_email:-}" ]] && bookstack_admin_email="admin@admin.com"
+
+    local bookstack_admin_pass
+    if $has_old_env; then bookstack_admin_pass=$(_old_env BOOKSTACK_ADMIN_PASSWORD); fi
+    [[ -z "${bookstack_admin_pass:-}" ]] && bookstack_admin_pass=$(openssl rand -base64 12)
+
+    # Preserve n8n/backend credentials if they exist
+    local n8n_admin_email n8n_admin_password ancroo_n8n_api_key ancroo_secret_key
+    if $has_old_env; then
+        n8n_admin_email=$(_old_env N8N_ADMIN_EMAIL)
+        n8n_admin_password=$(_old_env N8N_ADMIN_PASSWORD)
+        ancroo_n8n_api_key=$(_old_env ANCROO_N8N_API_KEY)
+        ancroo_secret_key=$(_old_env ANCROO_SECRET_KEY)
+    fi
+
+    if $has_old_env; then
+        print_info "Preserving existing credentials from .env"
+    fi
+
+    # Build COMPOSE_FILE
     local compose_file="docker-compose.yml:docker-compose.ports.yml"
     if [[ "$gpu_mode" != "cpu" ]]; then
-        compose_file="docker-compose.yml:modules/gpu-${gpu_mode}/compose.yml:docker-compose.ports.yml"
+        compose_file+=":compose.gpu-${gpu_mode}.yml"
     fi
-
-    local enabled_modules=""
-    if [[ "$gpu_mode" != "cpu" ]]; then
-        enabled_modules="gpu-${gpu_mode}"
-    fi
+    compose_file+=":compose.${stt_engine}.yml"
 
     cat > "$PROJECT_ROOT/.env" << EOF
-# ancroo-stack — Base Configuration
+# ancroo-stack — Configuration
 # Generated: $(date '+%Y-%m-%d %H:%M:%S')
 
 # System
 TZ="${timezone}"
 GPU_MODE="${gpu_mode}"
-INSTALL_MODE="base"
+STT_ENGINE="${stt_engine}"
 COMPOSE_FILE="${compose_file}"
-ENABLED_MODULES="${enabled_modules}"
 
 # PostgreSQL
 POSTGRES_USER="${pg_user}"
@@ -171,7 +213,42 @@ DOCKER_GID="${docker_gid}"
 
 # Host (for access URLs)
 HOST_IP="${hostname}"
+
+# n8n
+N8N_ENCRYPTION_KEY="${n8n_encryption_key}"
+N8N_DB="ancroo_n8n"
+N8N_PORT="5678"
+
+# BookStack
+BOOKSTACK_APP_KEY="${bookstack_app_key}"
+BOOKSTACK_APP_URL="http://${hostname}:8875"
+BOOKSTACK_DB_PASSWORD="${bookstack_db_pass}"
+BOOKSTACK_DB_ROOT_PASSWORD="${bookstack_db_root_pass}"
+BOOKSTACK_ADMIN_EMAIL="${bookstack_admin_email}"
+BOOKSTACK_ADMIN_PASSWORD="${bookstack_admin_pass}"
+BOOKSTACK_PORT="8875"
+
+# Adminer
+ADMINER_PORT="8081"
+
+# STT
+SPEACHES_PORT="8100"
+WHISPER_ROCM_PORT="8002"
 EOF
+
+    # Append preserved credentials (n8n provisioning, backend)
+    if [[ -n "${n8n_admin_email:-}" ]]; then
+        echo "N8N_ADMIN_EMAIL=\"${n8n_admin_email}\"" >> "$PROJECT_ROOT/.env"
+    fi
+    if [[ -n "${n8n_admin_password:-}" ]]; then
+        echo "N8N_ADMIN_PASSWORD=\"${n8n_admin_password}\"" >> "$PROJECT_ROOT/.env"
+    fi
+    if [[ -n "${ancroo_n8n_api_key:-}" ]]; then
+        echo "ANCROO_N8N_API_KEY=\"${ancroo_n8n_api_key}\"" >> "$PROJECT_ROOT/.env"
+    fi
+    if [[ -n "${ancroo_secret_key:-}" ]]; then
+        echo "ANCROO_SECRET_KEY=\"${ancroo_secret_key}\"" >> "$PROJECT_ROOT/.env"
+    fi
 
     chmod 640 "$PROJECT_ROOT/.env"
 

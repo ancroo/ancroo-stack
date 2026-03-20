@@ -1,5 +1,5 @@
 #!/bin/bash
-# n8n Module — Post-Enable Script
+# n8n-provision.sh — Provision n8n owner account and API key
 #
 # Waits for n8n to become healthy, then automatically provisions:
 #   1. Owner account via /rest/owner/setup (if needed)
@@ -7,15 +7,10 @@
 #   3. API key via /rest/api-keys
 #   4. Writes ANCROO_N8N_API_KEY to .env for the Ancroo Backend
 #
-# If the owner was already set up (e.g. via UI), and credentials are
-# stored in .env (N8N_ADMIN_EMAIL/PASSWORD), login + API key creation
-# is still attempted.
-#
-# Re-run via: ./module.sh setup n8n
+# Usage: bash n8n-provision.sh /path/to/ancroo-stack
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../" && pwd)}"
 ENV_FILE="$PROJECT_ROOT/.env"
 
 source "$PROJECT_ROOT/tools/install/lib/common.sh" 2>/dev/null || {
@@ -49,8 +44,8 @@ set_env_value() {
 # ─── Wait for n8n health ──────────────────────────────────
 N8N_HOST=$(docker inspect n8n --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || true)
 if [[ -z "$N8N_HOST" ]]; then
-    print_warning "n8n container not found — post-enable skipped"
-    return 0 2>/dev/null || exit 0
+    print_warning "n8n container not found — provisioning skipped"
+    exit 0
 fi
 
 N8N_URL="http://${N8N_HOST}:5678"
@@ -62,8 +57,8 @@ while true; do
         break
     fi
     if [[ $WAITED -ge $MAX_WAIT ]]; then
-        print_warning "n8n not ready after ${MAX_WAIT}s — post-enable skipped"
-        return 0 2>/dev/null || exit 0
+        print_warning "n8n not ready after ${MAX_WAIT}s — provisioning skipped"
+        exit 0
     fi
     sleep 5
     WAITED=$((WAITED + 5))
@@ -72,16 +67,14 @@ done
 print_success "n8n is running"
 
 # ─── Wait for n8n REST API to be fully ready ──────────────
-# /healthz passes before the REST API is initialized.
-# Wait until /rest/settings responds with valid JSON.
 WAITED=0
 while true; do
     if wget -qO- "${N8N_URL}/rest/settings" 2>/dev/null | grep -q '"data"'; then
         break
     fi
     if [[ $WAITED -ge $MAX_WAIT ]]; then
-        print_warning "n8n REST API not ready after ${MAX_WAIT}s — post-enable skipped"
-        return 0 2>/dev/null || exit 0
+        print_warning "n8n REST API not ready after ${MAX_WAIT}s — provisioning skipped"
+        exit 0
     fi
     sleep 5
     WAITED=$((WAITED + 5))
@@ -94,10 +87,10 @@ existing_key=$(get_env_value "ANCROO_N8N_API_KEY")
 if [[ -n "$existing_key" ]] && [[ "$existing_key" != CHANGE_ME* ]]; then
     print_info "n8n API key already configured — skipping provisioning"
     print_info "Access: http://${HOST_IP:-localhost}:${N8N_PORT:-5678}"
-    return 0 2>/dev/null || exit 0
+    exit 0
 fi
 
-# ─── Temp dir for JSON payloads (curl body-parser workaround) ─
+# ─── Temp dir for JSON payloads ──────────────────────────
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
@@ -109,7 +102,6 @@ SETUP_NEEDED=$(wget -qO- "${N8N_URL}/rest/settings" 2>/dev/null \
     | grep -o '"showSetupOnFirstLoad":true' || true)
 
 if [[ -n "$SETUP_NEEDED" ]]; then
-    # First access — create owner account
     N8N_ADMIN_EMAIL="admin@ancroo.local"
     N8N_ADMIN_PASSWORD="A$(openssl rand -hex 15)"
 
@@ -122,20 +114,17 @@ if [[ -n "$SETUP_NEEDED" ]]; then
 
     if echo "$SETUP_RESP" | grep -q '"email"'; then
         print_success "n8n owner account created ($N8N_ADMIN_EMAIL)"
-        # Store creds so we can re-login on re-run
         set_env_value "N8N_ADMIN_EMAIL" "$N8N_ADMIN_EMAIL"
         set_env_value "N8N_ADMIN_PASSWORD" "$N8N_ADMIN_PASSWORD"
     else
         print_warning "Failed to create n8n owner account"
         print_info "Create account manually: http://${HOST_IP:-localhost}:${N8N_PORT:-5678}"
-        return 0 2>/dev/null || exit 0
+        exit 0
     fi
 elif [[ -z "$N8N_ADMIN_EMAIL" ]] || [[ -z "$N8N_ADMIN_PASSWORD" ]]; then
-    # Owner exists but we don't have stored credentials
     print_info "n8n owner already exists but no credentials stored"
     print_info "Create API key manually: n8n Settings → n8n API"
-    print_info "Then set ANCROO_N8N_API_KEY in .env and run: ./module.sh setup ancroo"
-    return 0 2>/dev/null || exit 0
+    exit 0
 else
     print_info "n8n owner already configured ($N8N_ADMIN_EMAIL)"
 fi
@@ -144,9 +133,6 @@ fi
 printf '{"emailOrLdapLoginId":"%s","password":"%s"}' \
     "$N8N_ADMIN_EMAIL" "$N8N_ADMIN_PASSWORD" > "$TMPDIR/login.json"
 
-# n8n sets the cookie with Secure flag, so curl's cookie jar won't
-# send it back over plain HTTP.  Extract the cookie value from the
-# Set-Cookie response header instead.
 LOGIN_HEADERS=$(curl -s -D - -X POST "${N8N_URL}/rest/login" \
     -H "Content-Type: application/json" \
     -d @"$TMPDIR/login.json" \
@@ -157,18 +143,17 @@ LOGIN_RESP=$(cat "$TMPDIR/login_body.txt")
 if ! echo "$LOGIN_RESP" | grep -q '"email"'; then
     print_warning "Failed to login to n8n — create API key manually"
     print_info "n8n Settings → n8n API → Create API Key"
-    return 0 2>/dev/null || exit 0
+    exit 0
 fi
 
 AUTH_COOKIE=$(echo "$LOGIN_HEADERS" | grep -oP 'n8n-auth=\K[^;]+' || true)
 if [[ -z "$AUTH_COOKIE" ]]; then
     print_warning "Failed to extract n8n session cookie"
     print_info "Create API key manually: n8n Settings → n8n API"
-    return 0 2>/dev/null || exit 0
+    exit 0
 fi
 
 # ─── Step 3: Create API key (10 year expiry) ──────────────
-# Delete any existing key with our label first (n8n enforces unique labels)
 EXISTING_KEYS=$(curl -s "${N8N_URL}/rest/api-keys" \
     -H "Cookie: n8n-auth=${AUTH_COOKIE}" 2>&1)
 EXISTING_ID=$(echo "$EXISTING_KEYS" | python3 -c "
@@ -182,7 +167,6 @@ if [[ -n "$EXISTING_ID" ]]; then
         -H "Cookie: n8n-auth=${AUTH_COOKIE}" >/dev/null 2>&1
 fi
 
-# n8n expects expiresAt as Unix timestamp in seconds
 EXPIRES_AT=$(( $(date +%s) + 315360000 ))
 
 printf '{"label":"ancroo-backend","scopes":["workflow:create","workflow:read","workflow:update","workflow:delete","workflow:list","workflow:execute"],"expiresAt":%d}' \
@@ -198,7 +182,7 @@ RAW_KEY=$(echo "$APIKEY_RESP" | grep -o '"rawApiKey":"[^"]*"' | cut -d'"' -f4)
 if [[ -z "$RAW_KEY" ]]; then
     print_warning "Failed to create n8n API key — create manually in n8n Settings"
     print_info "n8n Settings → n8n API → Create API Key"
-    return 0 2>/dev/null || exit 0
+    exit 0
 fi
 
 # ─── Step 4: Store API key in .env ────────────────────────

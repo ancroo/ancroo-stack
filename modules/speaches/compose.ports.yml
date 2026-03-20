@@ -1,4 +1,0 @@
-services:
-  speaches:
-    ports:
-      - "${SPEACHES_PORT:-8100}:8000"

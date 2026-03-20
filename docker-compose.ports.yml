@@ -8,3 +8,12 @@ services:
   homepage:
     ports:
       - "80:3000"
+  adminer:
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+  n8n:
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+  bookstack:
+    ports:
+      - "${BOOKSTACK_PORT:-8875}:80"

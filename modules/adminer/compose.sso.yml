@@ -1,4 +1,0 @@
-services:
-  adminer:
-    labels:
-      - "traefik.http.routers.adminer.middlewares=keycloak-forward-auth"

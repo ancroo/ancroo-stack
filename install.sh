@@ -2,19 +2,16 @@
 # ancroo-stack — Guided Installer
 #
 # Installs the full AI stack in one run:
-#   Base:       PostgreSQL, Ollama, Open WebUI, Homepage
-#   Workflows:  n8n, Ancroo Backend (if available)
-#   STT:        Speaches, Whisper-ROCm (selectable)
-#   Tools:      Adminer
-#   Extension:  Ancroo Browser Extension (if available)
+#   Base:       PostgreSQL, Ollama, Open WebUI, Homepage, Adminer, n8n, BookStack
+#   STT:        Speaches or Whisper-ROCm (selectable)
+#   Optional:   Ancroo Backend, Runner, Browser Extension (auto-detected or cloned)
 #
 # Interactive by default. Non-interactive via environment variables:
 #   ANCROO_GPU_MODE        — nvidia | rocm | cpu (default: interactive prompt)
 #   ANCROO_TIMEZONE        — timezone string (default: auto-detect)
-#   ANCROO_OLLAMA_MODEL    — model name to pull, "none" or empty = skip (default: interactive prompt)
-#   ANCROO_STT_MODULES     — "1" | "2" | "1,2" | "all" (default: interactive prompt)
-#   ANCROO_BOOKSTACK       — "y" | "n" (default: interactive prompt)
-#   ANCROO_NONINTERACTIVE  — set to skip all prompts (uses defaults or env vars above)
+#   ANCROO_OLLAMA_MODEL    — model name to pull, "none" or empty = skip
+#   ANCROO_STT_ENGINE      — "speaches" | "whisper-rocm" (default: auto based on GPU)
+#   ANCROO_NONINTERACTIVE  — set to skip all prompts
 #   ANCROO_FORCE_REINSTALL — set to "1" to overwrite existing .env
 #
 # Usage:
@@ -134,104 +131,78 @@ else
     print_info "Ollama model: none (can be pulled later via Open WebUI)"
 fi
 
-# --- BookStack (optional) ---
-if [[ -n "${ANCROO_BOOKSTACK:-}" ]]; then
-    ENABLE_BOOKSTACK="${ANCROO_BOOKSTACK}"
-elif [[ -n "${ANCROO_NONINTERACTIVE:-}" ]]; then
-    ENABLE_BOOKSTACK="n"
-else
-    echo ""
-    ENABLE_BOOKSTACK="n"
-    confirm "Include BookStack (wiki / knowledge base, port 8875)?" "y" && ENABLE_BOOKSTACK="y" || true
-fi
-
-if [[ "$ENABLE_BOOKSTACK" == "y" ]]; then
-    WIZARD_BOOKSTACK_EMAIL="admin@admin.com"
-    WIZARD_BOOKSTACK_PASSWORD=$(openssl rand -base64 12)
-    print_info "BookStack admin: ${WIZARD_BOOKSTACK_EMAIL} (password auto-generated)"
-fi
-
-# --- STT module selection ---
-if [[ -n "${ANCROO_STT_MODULES:-}" ]]; then
-    _stt_choice="$ANCROO_STT_MODULES"
+# --- STT engine selection ---
+if [[ -n "${ANCROO_STT_ENGINE:-}" ]]; then
+    STT_ENGINE="$ANCROO_STT_ENGINE"
 elif [[ -n "${ANCROO_NONINTERACTIVE:-}" ]]; then
     if [[ "$WIZARD_GPU_MODE" == "rocm" ]]; then
-        _stt_choice="2"
+        STT_ENGINE="whisper-rocm"
     else
-        _stt_choice="1"
+        STT_ENGINE="speaches"
     fi
 else
     echo ""
-    print_step "STT modules (Speech-to-Text)"
+    print_step "STT engine (Speech-to-Text)"
     echo ""
     echo "    1) Speaches         — multi-model, CPU or GPU (CUDA)      (port 8100)"
     if [[ "$WIZARD_GPU_MODE" == "rocm" ]]; then
         echo "    2) Whisper ROCm     — AMD GPU-accelerated                 (port 8002)"
         echo ""
-        echo -ne "  Select STT modules (comma-separated, e.g. 1,2 or 'all') [2]: "
+        echo -ne "  Selection [1-2, default=2]: "
     else
         echo ""
-        echo -ne "  Select STT modules [1]: "
+        echo -ne "  Selection [1, default=1]: "
     fi
     read -r _stt_choice
-    if [[ -z "$_stt_choice" ]]; then
-        if [[ "$WIZARD_GPU_MODE" == "rocm" ]]; then
-            _stt_choice="2"
-        else
-            _stt_choice="1"
-        fi
-    fi
+    case "${_stt_choice:-}" in
+        2)
+            if [[ "$WIZARD_GPU_MODE" == "rocm" ]]; then
+                STT_ENGINE="whisper-rocm"
+            else
+                STT_ENGINE="speaches"
+            fi
+            ;;
+        *) STT_ENGINE="speaches" ;;
+    esac
 fi
+print_success "STT: ${STT_ENGINE}"
 
-ENABLE_SPEACHES="n"
-ENABLE_WHISPER_ROCM="n"
-
-if [[ "$_stt_choice" == "all" ]]; then
-    ENABLE_SPEACHES="y"
-    [[ "$WIZARD_GPU_MODE" == "rocm" ]] && ENABLE_WHISPER_ROCM="y"
-else
-    IFS=',' read -ra _stt_parts <<< "$_stt_choice"
-    for _part in "${_stt_parts[@]}"; do
-        _part="$(echo "$_part" | tr -d ' ')"
-        case "$_part" in
-            1) ENABLE_SPEACHES="y" ;;
-            2) [[ "$WIZARD_GPU_MODE" == "rocm" ]] && ENABLE_WHISPER_ROCM="y" ;;
-        esac
-    done
-fi
-
-# Ensure at least one STT module is selected
-if [[ "$ENABLE_SPEACHES" != "y" && "$ENABLE_WHISPER_ROCM" != "y" ]]; then
-    if [[ "$WIZARD_GPU_MODE" == "rocm" ]]; then
-        ENABLE_WHISPER_ROCM="y"
-        print_warning "No valid STT module selected — defaulting to Whisper ROCm"
-    else
-        ENABLE_SPEACHES="y"
-        print_warning "No valid STT module selected — defaulting to Speaches"
-    fi
-fi
-
-_stt_selected=""
-[[ "$ENABLE_SPEACHES" == "y" ]] && _stt_selected+="speaches "
-[[ "$ENABLE_WHISPER_ROCM" == "y" ]] && _stt_selected+="whisper-rocm "
-print_success "STT: ${_stt_selected% }"
-
-# --- Ancroo Backend + Extension ---
+# --- Ancroo projects (auto-detect or offer to clone) ---
 ENABLE_BACKEND=false
+ENABLE_RUNNER=false
 ENABLE_EXTENSION=false
 
 if [[ -d "$BACKEND_DIR" ]]; then
     ENABLE_BACKEND=true
     print_success "Ancroo Backend: found at ${BACKEND_DIR}"
+elif [[ -z "${ANCROO_NONINTERACTIVE:-}" ]] && command -v git &>/dev/null; then
+    echo ""
+    if confirm "Clone Ancroo Backend (AI workflow backend)?" "y"; then
+        print_step "Cloning ancroo-backend..."
+        if git clone https://github.com/ancroo/ancroo-backend.git "$BACKEND_DIR" 2>/dev/null; then
+            ENABLE_BACKEND=true
+            print_success "Ancroo Backend cloned"
+        else
+            print_warning "Failed to clone ancroo-backend — skipping"
+        fi
+    fi
 else
     print_info "Ancroo Backend: not found (${BACKEND_DIR}) — skipping"
 fi
 
-ENABLE_RUNNER=false
-
 if [[ -d "$RUNNER_DIR" ]]; then
     ENABLE_RUNNER=true
     print_success "Ancroo Runner: found at ${RUNNER_DIR}"
+elif [[ -z "${ANCROO_NONINTERACTIVE:-}" ]] && command -v git &>/dev/null; then
+    if confirm "Clone Ancroo Runner (script execution engine)?" "y"; then
+        print_step "Cloning ancroo-runner..."
+        if git clone https://github.com/ancroo/ancroo-runner.git "$RUNNER_DIR" 2>/dev/null; then
+            ENABLE_RUNNER=true
+            print_success "Ancroo Runner cloned"
+        else
+            print_warning "Failed to clone ancroo-runner — skipping"
+        fi
+    fi
 else
     print_info "Ancroo Runner: not found (${RUNNER_DIR}) — skipping"
 fi
@@ -239,60 +210,40 @@ fi
 if [[ -d "$WEB_DIR" ]]; then
     ENABLE_EXTENSION=true
     print_success "Ancroo Extension: found at ${WEB_DIR}"
+elif [[ -z "${ANCROO_NONINTERACTIVE:-}" ]] && command -v git &>/dev/null; then
+    if confirm "Clone Ancroo Web Extension (browser extension)?" "n"; then
+        print_step "Cloning ancroo-web..."
+        if git clone https://github.com/ancroo/ancroo-web.git "$WEB_DIR" 2>/dev/null; then
+            ENABLE_EXTENSION=true
+            print_success "Ancroo Extension cloned"
+        else
+            print_warning "Failed to clone ancroo-web — skipping"
+        fi
+    fi
 else
     print_info "Ancroo Extension: not found (${WEB_DIR}) — skipping"
 fi
 
 # ─── Port conflict check ─────────────────────────────────
-get_module_port() {
-    local conf_file="$1"
-    [[ -f "$conf_file" ]] || return 1
-    (
-        MODULE_PORT=""
-        source "$conf_file"
-        echo "$MODULE_PORT"
-    )
-}
-
 declare -A PORT_CHECK_MAP
-# Base services (fixed — defined in docker-compose.ports.yml)
 PORT_CHECK_MAP[80]="Homepage"
 PORT_CHECK_MAP[8080]="Open WebUI"
 PORT_CHECK_MAP[11434]="Ollama"
+PORT_CHECK_MAP[8081]="Adminer"
+PORT_CHECK_MAP[5678]="n8n"
+PORT_CHECK_MAP[8875]="BookStack"
 
-# Core modules — check their ports
-for _pcm in n8n adminer; do
-    _pcm_port=$(get_module_port "$PROJECT_ROOT/modules/$_pcm/module.conf") || true
-    [[ -n "${_pcm_port:-}" ]] && PORT_CHECK_MAP[$_pcm_port]="$_pcm"
-done
-
-# STT modules (user-selected)
-for _stt_mod in speaches whisper-rocm; do
-    _stt_var="ENABLE_$(echo "$_stt_mod" | tr '[:lower:]-' '[:upper:]_')"
-    if [[ "${!_stt_var}" == "y" ]]; then
-        _pcm_port=$(get_module_port "$PROJECT_ROOT/modules/$_stt_mod/module.conf") || true
-        [[ -n "${_pcm_port:-}" ]] && PORT_CHECK_MAP[$_pcm_port]="$_stt_mod"
-    fi
-done
-if [[ "$ENABLE_BOOKSTACK" == "y" ]]; then
-    _pcm_port=$(get_module_port "$PROJECT_ROOT/modules/bookstack/module.conf") || true
-    [[ -n "${_pcm_port:-}" ]] && PORT_CHECK_MAP[$_pcm_port]="bookstack"
+if [[ "$STT_ENGINE" == "speaches" ]]; then
+    PORT_CHECK_MAP[8100]="Speaches"
+elif [[ "$STT_ENGINE" == "whisper-rocm" ]]; then
+    PORT_CHECK_MAP[8002]="Whisper ROCm"
 fi
 
-# Ancroo Backend (module.conf lives in ancroo-backend repo)
 if $ENABLE_BACKEND; then
-    ancroo_port=$(get_module_port "$BACKEND_DIR/module/module.conf") || true
-    [[ -n "${ancroo_port:-}" ]] && PORT_CHECK_MAP[$ancroo_port]="Ancroo Backend"
+    PORT_CHECK_MAP[8900]="Ancroo Backend"
 fi
-
-# Ancroo Runner (module.conf in runner repo or already installed in stack)
 if $ENABLE_RUNNER; then
-    if [[ -f "$RUNNER_DIR/module/module.conf" ]]; then
-        runner_port=$(get_module_port "$RUNNER_DIR/module/module.conf") || true
-    elif [[ -f "$PROJECT_ROOT/modules/ancroo-runner/module.conf" ]]; then
-        runner_port=$(get_module_port "$PROJECT_ROOT/modules/ancroo-runner/module.conf") || true
-    fi
-    [[ -n "${runner_port:-}" ]] && PORT_CHECK_MAP[$runner_port]="Ancroo Runner"
+    PORT_CHECK_MAP[8510]="Ancroo Runner"
 fi
 
 blocked_ports=()
@@ -318,11 +269,6 @@ if [[ ${#blocked_ports[@]} -gt 0 ]]; then
 fi
 
 # ─── Pre-flight summary ──────────────────────────────────
-stt_list=""
-[[ "$ENABLE_SPEACHES" == "y" ]] && stt_list+="speaches "
-[[ "$ENABLE_WHISPER_ROCM" == "y" ]] && stt_list+="whisper-rocm "
-stt_list="${stt_list% }"
-
 echo ""
 echo -e "  ${BOLD}═══════════════════════════════════════════════════════${NC}"
 echo -e "  ${BOLD}  Installation plan${NC}"
@@ -330,15 +276,12 @@ echo -e "  ${BOLD}════════════════════�
 echo ""
 echo "  Mode:          base (http://IP:port)"
 echo "  GPU:           ${WIZARD_GPU_MODE}"
-echo "  STT:           ${stt_list}"
-echo "  Core modules:  n8n adminer"
-[[ "$ENABLE_BOOKSTACK" == "y" ]] && echo "  Optional:      bookstack"
+echo "  STT:           ${STT_ENGINE}"
+echo "  Services:      PostgreSQL, Ollama, Open WebUI, Homepage, Adminer, n8n, BookStack"
 echo "  Ollama model:  ${OLLAMA_PULL_MODEL:-none}"
 $ENABLE_BACKEND && echo "  Ancroo:        backend" || true
 $ENABLE_RUNNER && echo "  Runner:        ancroo-runner" || true
 $ENABLE_EXTENSION && echo "  Extension:     browser extension" || true
-echo ""
-echo -e "  ${YELLOW}SSL, SSO — experimental, available via module.sh${NC}"
 echo ""
 if [[ -z "${ANCROO_NONINTERACTIVE:-}" ]]; then
     echo -e "  ${YELLOW}Press Enter to start, Ctrl+C to cancel.${NC}"
@@ -361,13 +304,8 @@ if $EXISTING_INSTALL; then
     _existing_gpu=$(grep "^GPU_MODE=" "$PROJECT_ROOT/.env" 2>/dev/null | sed 's/^[^=]*=//;s/^"//;s/"$//' || echo "cpu")
     if [[ "$WIZARD_GPU_MODE" != "$_existing_gpu" ]]; then
         print_warning "GPU mode mismatch: .env has '$_existing_gpu', selected '$WIZARD_GPU_MODE'"
-        print_step "Switching GPU mode via module.sh..."
-        if bash "$PROJECT_ROOT/module.sh" gpu "$WIZARD_GPU_MODE"; then
-            print_success "GPU mode updated to: $WIZARD_GPU_MODE"
-        else
-            print_error "Failed to switch GPU mode"
-            exit 1
-        fi
+        print_step "Switching GPU mode..."
+        bash "$PROJECT_ROOT/stack.sh" gpu "$WIZARD_GPU_MODE"
     fi
 else
     print_header "Base Installation"
@@ -380,15 +318,22 @@ else
     # Generate .env
     print_step "Generating configuration"
     export ANCROO_GPU_MODE="$WIZARD_GPU_MODE"
-    create_base_env "$timezone" "$WIZARD_GPU_MODE"
+    create_base_env "$timezone" "$WIZARD_GPU_MODE" "$STT_ENGINE"
 
     # Create directories
     print_step "Creating directories"
     if [[ -d data ]] && [[ ! -w data ]]; then
         sudo chown "$(id -u):$(id -g)" data
     fi
-    mkdir -p data/{ollama,open-webui,postgresql,homepage}
-    chown "$(id -u):$(id -g)" data/{ollama,open-webui,postgresql,homepage}
+    mkdir -p data/{ollama,open-webui,postgresql,homepage,n8n,bookstack,bookstack-db}
+
+    # STT data directory
+    if [[ "$STT_ENGINE" == "speaches" ]]; then
+        mkdir -p data/speaches
+    elif [[ "$STT_ENGINE" == "whisper-rocm" ]]; then
+        mkdir -p data/whisper-rocm
+    fi
+
     mkdir -p logs
     print_success "Data directories created"
 
@@ -410,7 +355,7 @@ else
     waited=0
     while [[ $waited -lt $max_wait ]]; do
         all_running=true
-        for container in postgres ollama open-webui homepage; do
+        for container in postgres ollama open-webui homepage adminer n8n bookstack bookstack-db; do
             if ! docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
                 all_running=false
                 break
@@ -423,7 +368,7 @@ else
         waited=$((waited + 2))
     done
 
-    for container in postgres ollama open-webui homepage; do
+    for container in postgres ollama open-webui homepage adminer n8n bookstack bookstack-db; do
         if docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
             print_success "$container running"
         else
@@ -440,6 +385,10 @@ else
         print_info "Check: docker compose logs"
         exit 1
     fi
+
+    # ─── n8n API Key Provisioning ─────────────────────────
+    print_step "Provisioning n8n API key..."
+    bash "$PROJECT_ROOT/tools/install/lib/n8n-provision.sh" "$PROJECT_ROOT"
 fi
 
 # ─────────────────────────────────────────────────────────
@@ -461,7 +410,6 @@ if [[ -n "$ollama_model" ]]; then
     done
 
     if [[ "$ollama_ready" == "y" ]]; then
-        # Check if model is already available
         if docker exec ollama ollama list 2>/dev/null | grep -q "^${ollama_model}"; then
             print_success "Model ${ollama_model} already installed"
             ollama_model_pulled="y"
@@ -477,29 +425,6 @@ if [[ -n "$ollama_model" ]]; then
     else
         print_warning "Ollama not ready after 60s — you can pull the model later via Open WebUI"
     fi
-fi
-
-# ─────────────────────────────────────────────────────────
-# MODULES
-# ─────────────────────────────────────────────────────────
-print_header "Modules"
-
-# STT modules (user-selected)
-[[ "$ENABLE_SPEACHES" == "y" ]] && bash ./module.sh enable speaches
-[[ "$ENABLE_WHISPER_ROCM" == "y" ]] && bash ./module.sh enable whisper-rocm
-
-# Tools: Adminer (DB UI)
-bash ./module.sh enable adminer
-
-# n8n (pre-enable so API key is generated before Ancroo setup)
-bash ./module.sh enable n8n
-
-# Optional: BookStack
-if [[ "$ENABLE_BOOKSTACK" == "y" ]]; then
-    export BOOKSTACK_ADMIN_EMAIL="${WIZARD_BOOKSTACK_EMAIL:-}"
-    export BOOKSTACK_ADMIN_PASSWORD="${WIZARD_BOOKSTACK_PASSWORD:-}"
-    bash ./module.sh enable bookstack
-    unset BOOKSTACK_ADMIN_EMAIL BOOKSTACK_ADMIN_PASSWORD
 fi
 
 # ─────────────────────────────────────────────────────────
@@ -720,11 +645,8 @@ echo -e "  ${BOLD}Services:${NC}"
 echo -e "    Open WebUI:     ${CYAN}http://${HOST_IP}:8080${NC}"
 echo -e "    Homepage:       ${CYAN}http://${HOST_IP}${NC}"
 echo -e "    Ollama API:     ${CYAN}http://${HOST_IP}:11434${NC}"
-
-echo ""
-echo -e "  ${BOLD}STT modules:${NC}"
-[[ "$ENABLE_SPEACHES" == "y" ]] && echo -e "    Speaches:       ${CYAN}http://${HOST_IP}:8100${NC}"
-[[ "$ENABLE_WHISPER_ROCM" == "y" ]] && echo -e "    Whisper ROCm:   ${CYAN}http://${HOST_IP}:8002${NC}"
+echo -e "    Adminer:        ${CYAN}http://${HOST_IP}:8081${NC}"
+echo -e "    BookStack:      ${CYAN}http://${HOST_IP}:8875${NC}"
 
 N8N_PORT_FINAL=$(grep "^N8N_PORT=" "$PROJECT_ROOT/.env" 2>/dev/null | head -1 | sed 's/^[^=]*=//;s/^"//;s/"$//' || echo "5678")
 echo ""
@@ -739,6 +661,14 @@ if [[ -n "$BOOKSTACK_USER_FINAL" && -n "$BOOKSTACK_PASS_FINAL" ]]; then
     echo -e "  ${BOLD}BookStack Admin:${NC}"
     echo -e "    URL:      ${CYAN}http://${HOST_IP}:8875${NC}"
     echo -e "    Login:    ${BOLD}${BOOKSTACK_USER_FINAL}${NC} / ${YELLOW}${BOOKSTACK_PASS_FINAL}${NC}"
+fi
+
+echo ""
+echo -e "  ${BOLD}STT (Speech-to-Text):${NC}"
+if [[ "$STT_ENGINE" == "speaches" ]]; then
+    echo -e "    Speaches:       ${CYAN}http://${HOST_IP}:8100${NC}"
+elif [[ "$STT_ENGINE" == "whisper-rocm" ]]; then
+    echo -e "    Whisper ROCm:   ${CYAN}http://${HOST_IP}:8002${NC}"
 fi
 
 if [[ -n "${ollama_model:-}" ]]; then
@@ -783,15 +713,12 @@ if $ENABLE_BACKEND; then
 fi
 
 echo ""
-echo -e "  ${BOLD}Manage modules:${NC}"
-echo "    ./module.sh list           — available modules"
-echo "    ./module.sh urls           — all service URLs"
-echo "    ./module.sh status         — running status"
-echo "    ./module.sh enable <name>  — add a module"
-echo ""
-echo -e "  ${BOLD}Optional modules ${YELLOW}(experimental, enable manually)${NC}${BOLD}:${NC}"
-echo -e "    SSL:           ${CYAN}./module.sh enable ssl${NC}"
-echo -e "    SSO:           ${CYAN}./module.sh enable sso${NC}"
+echo -e "  ${BOLD}Manage stack:${NC}"
+echo "    ./stack.sh status          — container status"
+echo "    ./stack.sh urls            — all service URLs"
+echo "    ./stack.sh verify          — health checks"
+echo "    ./stack.sh gpu <mode>      — switch GPU (cpu/nvidia/rocm)"
+echo "    ./stack.sh stt <engine>    — switch STT (speaches/whisper-rocm)"
 
 # --- Repeat all warnings at the very end ---
 if [[ ${#_fp_warnings[@]} -gt 0 ]]; then

@@ -1,11 +1,13 @@
 services:
   whisper-rocm:
     build:
-      context: ./modules/whisper-rocm/build
+      context: ./tools/build/whisper-rocm
       dockerfile: Dockerfile
     container_name: whisper-rocm
     ipc: host
     restart: unless-stopped
+    ports:
+      - "${WHISPER_ROCM_PORT:-8002}:8000"
     environment:
       - TZ=${TZ}
       - HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION:-}

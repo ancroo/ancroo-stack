@@ -1,4 +1,0 @@
-services:
-  adminer:
-    ports:
-      - "${ADMINER_PORT:-8081}:8080"

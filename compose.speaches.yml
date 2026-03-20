@@ -3,6 +3,8 @@ services:
     image: ghcr.io/speaches-ai/speaches:latest-cpu
     container_name: speaches
     restart: unless-stopped
+    ports:
+      - "${SPEACHES_PORT:-8100}:8000"
     environment:
       - TZ=${TZ}
       - HF_HUB_OFFLINE=0

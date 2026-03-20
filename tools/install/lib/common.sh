@@ -91,8 +91,7 @@ safe_source_env() {
 }
 
 # Environment file management
-# Used by setup scripts (ssl, sso) that run as subprocesses
-# and cannot access module.sh's built-in update_env_var()
+# Used by setup scripts and install helpers
 update_env_var() {
     local key="$1"
     local value="$2"

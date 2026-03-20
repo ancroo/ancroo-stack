@@ -88,6 +88,123 @@ services:
       retries: 3
       start_period: 15s
 
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    restart: unless-stopped
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+      - TZ=${TZ}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - ai-network
+    depends_on:
+      - postgres
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://${HOST_IP:-localhost}:${N8N_PORT:-5678}/
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${N8N_DB:-ancroo_n8n}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-ancroo}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      - EXECUTIONS_MODE=regular
+      - N8N_SECURE_COOKIE=false
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    networks:
+      - ai-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+  bookstack:
+    image: lscr.io/linuxserver/bookstack:latest
+    container_name: bookstack
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PUID}
+      - TZ=${TZ}
+      - APP_URL=${BOOKSTACK_APP_URL:-http://localhost:8875}
+      - APP_KEY=${BOOKSTACK_APP_KEY}
+      - DB_HOST=${BOOKSTACK_DB_HOST:-bookstack-db}
+      - DB_PORT=${BOOKSTACK_DB_PORT:-3306}
+      - DB_DATABASE=${BOOKSTACK_DB_DATABASE:-bookstack}
+      - DB_USERNAME=${BOOKSTACK_DB_USER:-bookstack}
+      - DB_PASSWORD=${BOOKSTACK_DB_PASSWORD}
+      # OIDC/SSO (only effective when BOOKSTACK_AUTH_METHOD=oidc)
+      - AUTH_METHOD=${BOOKSTACK_AUTH_METHOD:-standard}
+      - OIDC_NAME=${BOOKSTACK_OIDC_NAME:-Keycloak}
+      - OIDC_CLIENT_ID=${BOOKSTACK_OIDC_CLIENT_ID:-bookstack}
+      - OIDC_CLIENT_SECRET=${BOOKSTACK_OIDC_CLIENT_SECRET:-}
+      - OIDC_ISSUER=${BOOKSTACK_OIDC_ISSUER:-}
+      - OIDC_ISSUER_DISCOVER=true
+      - OIDC_END_SESSION_ENDPOINT=true
+      - OIDC_DISPLAY_NAME_CLAIMS=name
+      - OIDC_GROUPS_CLAIM=groups
+      - OIDC_USER_TO_GROUPS=true
+      - OIDC_ADDITIONAL_SCOPES=
+      - OIDC_REMOVE_FROM_GROUPS=true
+      # API rate limit
+      - API_REQUESTS_PER_MIN=180
+    volumes:
+      - ./data/bookstack:/config
+    networks:
+      - ai-network
+    depends_on:
+      bookstack-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  bookstack-db:
+    image: mariadb:11
+    container_name: bookstack-db
+    restart: unless-stopped
+    environment:
+      - MARIADB_ROOT_PASSWORD=${BOOKSTACK_DB_ROOT_PASSWORD}
+      - MARIADB_DATABASE=${BOOKSTACK_DB_DATABASE:-bookstack}
+      - MARIADB_USER=${BOOKSTACK_DB_USER:-bookstack}
+      - MARIADB_PASSWORD=${BOOKSTACK_DB_PASSWORD}
+      - TZ=${TZ}
+    volumes:
+      - ./data/bookstack-db:/var/lib/mysql
+    networks:
+      - ai-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 networks:
   ai-network:
     name: ai-network
