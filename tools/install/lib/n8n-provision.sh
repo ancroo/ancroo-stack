@@ -102,7 +102,8 @@ SETUP_NEEDED=$(wget -qO- "${N8N_URL}/rest/settings" 2>/dev/null \
     | grep -o '"showSetupOnFirstLoad":true' || true)
 
 if [[ -n "$SETUP_NEEDED" ]]; then
-    N8N_ADMIN_EMAIL="admin@ancroo.local"
+    N8N_ADMIN_EMAIL="${ANCROO_ADMIN_EMAIL:-$(get_env_value "ANCROO_ADMIN_EMAIL")}"
+    [[ -z "$N8N_ADMIN_EMAIL" ]] && N8N_ADMIN_EMAIL="admin@ancroo.local"
     N8N_ADMIN_PASSWORD="A$(openssl rand -hex 15)"
 
     printf '{"email":"%s","firstName":"Admin","lastName":"Ancroo","password":"%s"}' \

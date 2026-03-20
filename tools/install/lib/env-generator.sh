@@ -164,7 +164,7 @@ create_base_env() {
 
     local bookstack_admin_email
     if $has_old_env; then bookstack_admin_email=$(_old_env BOOKSTACK_ADMIN_EMAIL); fi
-    [[ -z "${bookstack_admin_email:-}" ]] && bookstack_admin_email="admin@admin.com"
+    [[ -z "${bookstack_admin_email:-}" ]] && bookstack_admin_email="${ANCROO_ADMIN_EMAIL:-admin@ancroo.local}"
 
     local bookstack_admin_pass
     if $has_old_env; then bookstack_admin_pass=$(_old_env BOOKSTACK_ADMIN_PASSWORD); fi
@@ -199,6 +199,7 @@ TZ="${timezone}"
 GPU_MODE="${gpu_mode}"
 STT_ENGINE="${stt_engine}"
 COMPOSE_FILE="${compose_file}"
+ANCROO_ADMIN_EMAIL="${ANCROO_ADMIN_EMAIL:-admin@ancroo.local}"
 
 # PostgreSQL
 POSTGRES_USER="${pg_user}"

@@ -167,6 +167,36 @@ else
 fi
 print_success "STT: ${STT_ENGINE}"
 
+# --- Admin email ---
+if [[ -n "${ANCROO_ADMIN_EMAIL:-}" ]]; then
+    WIZARD_ADMIN_EMAIL="$ANCROO_ADMIN_EMAIL"
+elif $EXISTING_INSTALL; then
+    WIZARD_ADMIN_EMAIL=$(grep "^ANCROO_ADMIN_EMAIL=" "$PROJECT_ROOT/.env" 2>/dev/null | sed 's/^[^=]*=//;s/^"//;s/"$//' || true)
+    if [[ -z "$WIZARD_ADMIN_EMAIL" ]]; then
+        # Fall back to existing BookStack email if migrating
+        WIZARD_ADMIN_EMAIL=$(grep "^BOOKSTACK_ADMIN_EMAIL=" "$PROJECT_ROOT/.env" 2>/dev/null | sed 's/^[^=]*=//;s/^"//;s/"$//' || true)
+    fi
+elif [[ -z "${ANCROO_NONINTERACTIVE:-}" ]]; then
+    echo ""
+    print_step "Admin email"
+    echo ""
+    echo "  Used for n8n, BookStack, and SSL certificates."
+    echo ""
+    echo -ne "  Email address: "
+    read -r _admin_email_input
+    WIZARD_ADMIN_EMAIL="${_admin_email_input:-}"
+fi
+
+if [[ -z "${WIZARD_ADMIN_EMAIL:-}" ]]; then
+    WIZARD_ADMIN_EMAIL="admin@ancroo.local"
+    print_info "Admin email: ${WIZARD_ADMIN_EMAIL} (default)"
+else
+    print_success "Admin email: ${WIZARD_ADMIN_EMAIL}"
+fi
+
+# Export for env-generator and n8n-provision
+export ANCROO_ADMIN_EMAIL="$WIZARD_ADMIN_EMAIL"
+
 # --- Ancroo projects (auto-detect or offer to clone) ---
 ENABLE_BACKEND=false
 ENABLE_RUNNER=false
