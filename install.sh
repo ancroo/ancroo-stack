@@ -274,7 +274,7 @@ echo -e "  ${BOLD}════════════════════�
 echo -e "  ${BOLD}  Installation plan${NC}"
 echo -e "  ${BOLD}═══════════════════════════════════════════════════════${NC}"
 echo ""
-echo "  Mode:          base (http://IP:port)"
+echo "  Access:        http://IP:port (no TLS)"
 echo "  GPU:           ${WIZARD_GPU_MODE}"
 echo "  STT:           ${STT_ENGINE}"
 echo "  Services:      PostgreSQL, Ollama, Open WebUI, Homepage, Adminer, n8n, BookStack"
@@ -376,6 +376,12 @@ else
             failed_count=$((failed_count + 1))
         fi
     done
+
+    # Ensure n8n database exists (init script only runs on first PG start)
+    local n8n_db="${N8N_DB:-ancroo_n8n}"
+    if ! docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -lqt 2>/dev/null | grep -qw "$n8n_db"; then
+        docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -c "CREATE DATABASE ${n8n_db};" 2>/dev/null || true
+    fi
 
     # Restart homepage to ensure config is loaded on first install
     docker restart homepage >/dev/null 2>&1 || true
