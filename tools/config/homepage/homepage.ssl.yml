@@ -1,5 +1,5 @@
-# Core AI Tools — SSL mode (domain-based URLs)
-- AI Tools:
+# Core services — SSL mode (domain-based URLs)
+- Apps:
     - Open WebUI:
         icon: sh-open-webui
         href: https://${OPENWEBUI_DOMAIN}
@@ -8,7 +8,7 @@
         server: local
         container: open-webui
 
-- Administration:
+- Infrastructure:
     - Ollama:
         icon: sh-ollama
         href: https://${OLLAMA_DOMAIN}

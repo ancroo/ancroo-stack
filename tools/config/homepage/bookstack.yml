@@ -1,5 +1,5 @@
 # BookStack Dashboard Widget
-- Knowledge:
+- Apps:
     - BookStack:
         icon: mdi-book-open-page-variant
         href: http://${HOST_IP}:${BOOKSTACK_PORT}

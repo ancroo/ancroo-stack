@@ -1,5 +1,5 @@
 # Speaches Dashboard Widget
-- Speech:
+- Infrastructure:
     - Speaches:
         icon: mdi-microphone
         href: http://${HOST_IP}:${SPEACHES_PORT}

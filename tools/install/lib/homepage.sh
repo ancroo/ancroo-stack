@@ -58,10 +58,11 @@ build_homepage_services() {
     fi
 
     # Base module snippets (always included)
+    # Order: Apps first (bookstack, n8n), then Infrastructure (adminer)
     for snippet_file in \
-        "$PROJECT_ROOT/tools/config/homepage/adminer.yml" \
+        "$PROJECT_ROOT/tools/config/homepage/bookstack.yml" \
         "$PROJECT_ROOT/tools/config/homepage/n8n.yml" \
-        "$PROJECT_ROOT/tools/config/homepage/bookstack.yml"; do
+        "$PROJECT_ROOT/tools/config/homepage/adminer.yml"; do
         if [[ -f "$snippet_file" ]]; then
             echo "" >> "$temp_file"
             grep -v '^#' "$snippet_file" | envsubst >> "$temp_file"
@@ -95,21 +96,12 @@ color: slate
 headerStyle: clean
 statusStyle: dot
 layout:
-  AI Tools:
-    style: column
-    columns: 1
-  Knowledge:
-    style: column
-    columns: 1
-  Automation:
-    style: column
-    columns: 2
-  Speech:
-    style: column
-    columns: 3
-  Administration:
+  Apps:
     style: row
-    columns: 3
+    columns: 2
+  Infrastructure:
+    style: row
+    columns: 2
 EOF
 
     # docker.yaml

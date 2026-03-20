@@ -1,4 +1,5 @@
-- Speech:
+# Whisper ROCm Dashboard Widget
+- Infrastructure:
     - Whisper ROCm:
         icon: mdi-microphone
         href: http://${HOST_IP}:${WHISPER_ROCM_PORT}/docs
