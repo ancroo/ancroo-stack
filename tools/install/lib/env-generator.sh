@@ -171,12 +171,17 @@ create_base_env() {
     [[ -z "${bookstack_admin_pass:-}" ]] && bookstack_admin_pass=$(openssl rand -base64 12)
 
     # Preserve n8n/backend credentials if they exist
-    local n8n_admin_email n8n_admin_password ancroo_n8n_api_key ancroo_secret_key
+    local n8n_admin_email n8n_admin_password
+    local ancroo_n8n_api_key ancroo_secret_key
+    local ancroo_backends ancroo_whisper_rocm_url ancroo_ollama_model
     if $has_old_env; then
         n8n_admin_email=$(_old_env N8N_ADMIN_EMAIL)
         n8n_admin_password=$(_old_env N8N_ADMIN_PASSWORD)
         ancroo_n8n_api_key=$(_old_env ANCROO_N8N_API_KEY)
         ancroo_secret_key=$(_old_env ANCROO_SECRET_KEY)
+        ancroo_backends=$(_old_env ANCROO_BACKENDS)
+        ancroo_whisper_rocm_url=$(_old_env ANCROO_WHISPER_ROCM_URL)
+        ancroo_ollama_model=$(_old_env ANCROO_OLLAMA_MODEL)
     fi
 
     if $has_old_env; then
@@ -240,19 +245,36 @@ SPEACHES_IMAGE_TAG="$(if [[ "$gpu_mode" == "nvidia" ]]; then echo "latest-cuda";
 WHISPER_ROCM_PORT="8002"
 EOF
 
-    # Append preserved credentials (n8n provisioning, backend)
-    if [[ -n "${n8n_admin_email:-}" ]]; then
-        echo "N8N_ADMIN_EMAIL=\"${n8n_admin_email}\"" >> "$PROJECT_ROOT/.env"
-    fi
-    if [[ -n "${n8n_admin_password:-}" ]]; then
-        echo "N8N_ADMIN_PASSWORD=\"${n8n_admin_password}\"" >> "$PROJECT_ROOT/.env"
-    fi
-    if [[ -n "${ancroo_n8n_api_key:-}" ]]; then
-        echo "ANCROO_N8N_API_KEY=\"${ancroo_n8n_api_key}\"" >> "$PROJECT_ROOT/.env"
-    fi
-    if [[ -n "${ancroo_secret_key:-}" ]]; then
-        echo "ANCROO_SECRET_KEY=\"${ancroo_secret_key}\"" >> "$PROJECT_ROOT/.env"
-    fi
+    # Append n8n credentials (preserved from previous install)
+    {
+        local _has_n8n=false
+        [[ -n "${n8n_admin_email:-}" ]] && _has_n8n=true
+        [[ -n "${n8n_admin_password:-}" ]] && _has_n8n=true
+        if $_has_n8n; then
+            echo ""
+            [[ -n "${n8n_admin_email:-}" ]] && echo "N8N_ADMIN_EMAIL=\"${n8n_admin_email}\""
+            [[ -n "${n8n_admin_password:-}" ]] && echo "N8N_ADMIN_PASSWORD=\"${n8n_admin_password}\""
+        fi
+    } >> "$PROJECT_ROOT/.env"
+
+    # Append Ancroo Backend variables (preserved from previous install)
+    {
+        local _has_ancroo=false
+        [[ -n "${ancroo_secret_key:-}" ]] && _has_ancroo=true
+        [[ -n "${ancroo_backends:-}" ]] && _has_ancroo=true
+        [[ -n "${ancroo_n8n_api_key:-}" ]] && _has_ancroo=true
+        [[ -n "${ancroo_whisper_rocm_url:-}" ]] && _has_ancroo=true
+        [[ -n "${ancroo_ollama_model:-}" ]] && _has_ancroo=true
+        if $_has_ancroo; then
+            echo ""
+            echo "# Ancroo Backend"
+            [[ -n "${ancroo_secret_key:-}" ]] && echo "ANCROO_SECRET_KEY=\"${ancroo_secret_key}\""
+            [[ -n "${ancroo_backends:-}" ]] && echo "ANCROO_BACKENDS=\"${ancroo_backends}\""
+            [[ -n "${ancroo_whisper_rocm_url:-}" ]] && echo "ANCROO_WHISPER_ROCM_URL=\"${ancroo_whisper_rocm_url}\""
+            [[ -n "${ancroo_ollama_model:-}" ]] && echo "ANCROO_OLLAMA_MODEL=\"${ancroo_ollama_model}\""
+            [[ -n "${ancroo_n8n_api_key:-}" ]] && echo "ANCROO_N8N_API_KEY=\"${ancroo_n8n_api_key}\""
+        fi
+    } >> "$PROJECT_ROOT/.env"
 
     chmod 640 "$PROJECT_ROOT/.env"
 

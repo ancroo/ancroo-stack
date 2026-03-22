@@ -33,8 +33,10 @@ set_env_value() {
     local key="$1" value="$2"
     local entry="${key}=\"${value}\""
     if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
-        grep -v "^${key}=" "$ENV_FILE" > "${ENV_FILE}.tmp"
-        echo "$entry" >> "${ENV_FILE}.tmp"
+        # Replace in-place to preserve section ordering
+        awk -v key="$key" -v entry="$entry" '
+            $0 ~ "^"key"=" { print entry; next } { print }
+        ' "$ENV_FILE" > "${ENV_FILE}.tmp"
         mv "${ENV_FILE}.tmp" "$ENV_FILE"
     else
         echo "$entry" >> "$ENV_FILE"
