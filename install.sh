@@ -27,6 +27,7 @@ WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="${WORKSPACE_ROOT}/ancroo-backend"
 RUNNER_DIR="${WORKSPACE_ROOT}/ancroo-runner"
 WEB_DIR="${WORKSPACE_ROOT}/ancroo-web"
+META_DIR="${WORKSPACE_ROOT}/ancroo"
 
 source "$SCRIPT_DIR/tools/install/lib/common.sh"
 source "$SCRIPT_DIR/tools/install/lib/validation.sh"
@@ -235,6 +236,18 @@ else
         print_error "Failed to clone ancroo-runner — runner is required"
         print_info "Install git or clone manually: git clone https://github.com/ancroo/ancroo-runner.git ${RUNNER_DIR}"
         exit 1
+    fi
+fi
+
+if [[ -d "$META_DIR" ]]; then
+    print_success "Ancroo Meta: found at ${META_DIR}"
+else
+    print_step "Cloning ancroo (example workflows)..."
+    if git clone https://github.com/ancroo/ancroo.git "$META_DIR" 2>/dev/null; then
+        print_success "Ancroo Meta cloned (example workflows available)"
+    else
+        print_warning "Failed to clone ancroo — example workflows won't be available"
+        print_info "Clone manually: git clone https://github.com/ancroo/ancroo.git ${META_DIR}"
     fi
 fi
 
@@ -534,11 +547,11 @@ if $ENABLE_BACKEND; then
     # Pass selected workflow backends
     export ANCROO_BACKENDS_INPUT="$WIZARD_BACKENDS"
 
-    # Set workflows directory (backend compose.yml default is wrong without this)
+    # Set workflows directory (points to ancroo meta-repo's example workflows)
     _current_workflows_dir=$(grep "^ANCROO_WORKFLOWS_DIR=" "$PROJECT_ROOT/.env" 2>/dev/null | sed 's/^[^=]*=//;s/^"//;s/"$//' || true)
     if [[ -z "$_current_workflows_dir" ]]; then
-        if [[ -d "$BACKEND_DIR/workflows" ]]; then
-            update_env_var "ANCROO_WORKFLOWS_DIR" "../ancroo-backend/workflows" "$PROJECT_ROOT/.env"
+        if [[ -d "$META_DIR/workflows" ]]; then
+            update_env_var "ANCROO_WORKFLOWS_DIR" "../ancroo/workflows" "$PROJECT_ROOT/.env"
         fi
     fi
 
