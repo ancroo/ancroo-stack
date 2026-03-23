@@ -22,6 +22,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /home/ubuntu/.cache/huggingface/hub && exec speaches"]
     volumes:
       - ./data/speaches:/home/ubuntu/.cache/huggingface
     networks:
