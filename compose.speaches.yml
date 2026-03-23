@@ -22,7 +22,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
-    entrypoint: ["/bin/sh", "-c", "mkdir -p /home/ubuntu/.cache/huggingface/hub && exec speaches"]
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /home/ubuntu/.cache/huggingface/hub && exec uvicorn --factory speaches.main:create_app --host 0.0.0.0 --port 8000"]
     volumes:
       - ./data/speaches:/home/ubuntu/.cache/huggingface
     networks:
