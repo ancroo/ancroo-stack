@@ -7,3 +7,11 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+  speaches:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
