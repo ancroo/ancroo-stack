@@ -155,7 +155,27 @@ sudo usermod -aG docker $USER
 # Re-login for group permissions
 ```
 
-For NVIDIA GPU support, install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
+### GPU-specific requirements
+
+**NVIDIA:** Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
+
+**AMD ROCm:** Requires `amdgpu-dkms` from the AMDGPU 31.20+ repository (ROCm 7.2+). The driver must provide `/dev/kfd`, `/dev/dri`, and `/dev/accel`. Older driver versions (AMDGPU 30.x / ROCm 6.x) are not supported and will cause GPU detection failures or crashes.
+
+```bash
+# Install or upgrade the AMD GPU driver (Ubuntu 24.04)
+sudo apt install amdgpu-dkms amdgpu-dkms-firmware
+sudo reboot
+# Verify: all three device paths must exist
+ls /dev/kfd /dev/dri/renderD128 /dev/accel/accel0
+```
+
+| AMD Architecture | GPUs | Status |
+|---|---|---|
+| gfx1100–1102 | RDNA 3 (RX 7000 series) | Supported |
+| gfx1151 | RDNA 4 iGPU (Radeon 8060S, Ryzen AI MAX) | Supported |
+| gfx1105 | RDNA 3 iGPU (Radeon 780M, 760M) | Supported |
+| gfx1030 | RDNA 2 (RX 6000 series) | Supported |
+| gfx908, gfx90a, gfx942 | AMD Instinct (MI series) | Supported |
 
 ## Contributing
 

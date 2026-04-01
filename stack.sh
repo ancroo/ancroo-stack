@@ -347,39 +347,20 @@ _detect_and_configure_rocm_gpu() {
     case "$gfx_version" in
         110501|1151|110500|1105)
             print_info "GPU: gfx${gfx_version} (RDNA 4 iGPU) detected — using ROCm 7.x backend"
-            update_env_var "OLLAMA_IMAGE_TAG" "0.17.8-rc1-rocm"
             update_env_var "OLLAMA_FLASH_ATTENTION" "true"
-            update_env_var "OLLAMA_VULKAN" ""
-            update_env_var "HIP_VISIBLE_DEVICES" "0"
-            update_env_var "HSA_OVERRIDE_GFX_VERSION" ""
             ;;
         110000|110100|110200|1100|1101|1102)
             print_info "GPU: RDNA 3 detected — using native HIP backend"
-            update_env_var "OLLAMA_IMAGE_TAG" ""
-            update_env_var "OLLAMA_VULKAN" ""
-            update_env_var "HIP_VISIBLE_DEVICES" ""
-            update_env_var "HSA_OVERRIDE_GFX_VERSION" ""
             ;;
         103000|1030)
             print_info "GPU: RDNA 2 detected — using native HIP backend"
-            update_env_var "OLLAMA_IMAGE_TAG" ""
-            update_env_var "OLLAMA_VULKAN" ""
-            update_env_var "HIP_VISIBLE_DEVICES" ""
-            update_env_var "HSA_OVERRIDE_GFX_VERSION" ""
             ;;
         90800|90a00|94200|95000|908|90a|942|950)
             print_info "GPU: AMD Instinct detected — using native HIP backend"
-            update_env_var "OLLAMA_IMAGE_TAG" ""
-            update_env_var "OLLAMA_VULKAN" ""
-            update_env_var "HIP_VISIBLE_DEVICES" ""
-            update_env_var "HSA_OVERRIDE_GFX_VERSION" ""
             ;;
         *)
             print_warning "GPU architecture $gfx_version not explicitly supported"
-            print_warning "HIP will be attempted — if issues occur, set HSA_OVERRIDE_GFX_VERSION in .env"
-            update_env_var "OLLAMA_IMAGE_TAG" ""
-            update_env_var "OLLAMA_VULKAN" ""
-            update_env_var "HIP_VISIBLE_DEVICES" ""
+            print_warning "HIP will be attempted — if issues occur, check ROCm compatibility"
             ;;
     esac
 }

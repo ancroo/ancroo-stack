@@ -22,4 +22,4 @@ USER ubuntu
 
 EXPOSE 8000
 
-CMD ["bash", "-c", "[ -z \"$HSA_OVERRIDE_GFX_VERSION\" ] && unset HSA_OVERRIDE_GFX_VERSION; exec python server.py"]
+CMD ["python", "server.py"]

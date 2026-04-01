@@ -68,10 +68,8 @@ write_rocm_gpu_env() {
         case "$gfx_version" in
             110501|1151|110500|1105)
                 # gfx1151 (RDNA 4 / Strix Halo) or gfx1105 (RDNA 3 iGPU)
-                # ROCm 7.x supports gfx1151 natively. The stable ollama:rocm tag ships ROCm 6.x which crashes.
+                # ROCm 7.x supports gfx1151 natively (stable ollama:rocm ships ROCm 7.x)
                 print_info "GPU: gfx${gfx_version} (RDNA 4 iGPU) detected — using ROCm 7.x backend"
-                ollama_tag="0.17.8-rc1-rocm"
-                hip_devices="0"
                 flash_attention="true"
                 ;;
             110000|110100|110200|1100|1101|1102)
@@ -90,13 +88,17 @@ write_rocm_gpu_env() {
         esac
     fi
 
+    # Detect GPU device groups for container access
+    local video_gid render_gid
+    video_gid=$(getent group video 2>/dev/null | cut -d: -f3 || echo "")
+    render_gid=$(getent group render 2>/dev/null | cut -d: -f3 || echo "")
+
     cat >> "$PROJECT_ROOT/.env" << EOF
 
 # ROCm GPU configuration (auto-detected)
-OLLAMA_IMAGE_TAG="${ollama_tag}"
-HIP_VISIBLE_DEVICES="${hip_devices}"
 OLLAMA_FLASH_ATTENTION="${flash_attention}"
-HSA_OVERRIDE_GFX_VERSION="${hsa_override}"
+VIDEO_GID="${video_gid}"
+RENDER_GID="${render_gid}"
 EOF
 }
 
