@@ -388,7 +388,7 @@ if $EXISTING_INSTALL; then
     n8n_db="${N8N_DB:-ancroo_n8n}"
     if docker ps --format '{{.Names}}' | grep -q '^postgres$'; then
         if ! docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -lqt 2>/dev/null | grep -qw "$n8n_db"; then
-            docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -c "CREATE DATABASE ${n8n_db};" 2>/dev/null || true
+            docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -c "CREATE DATABASE \"${n8n_db}\";" 2>/dev/null || true
         fi
     fi
 
@@ -471,7 +471,7 @@ else
     # Ensure n8n database exists (init script only runs on first PG start)
     n8n_db="${N8N_DB:-ancroo_n8n}"
     if ! docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -lqt 2>/dev/null | grep -qw "$n8n_db"; then
-        docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -c "CREATE DATABASE ${n8n_db};" 2>/dev/null || true
+        docker exec postgres psql -U "${POSTGRES_USER:-ancroo}" -c "CREATE DATABASE \"${n8n_db}\";" 2>/dev/null || true
     fi
 
     # Restart homepage to ensure config is loaded on first install
