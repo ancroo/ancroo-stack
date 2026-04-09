@@ -365,6 +365,95 @@ _detect_and_configure_rocm_gpu() {
     esac
 }
 
+cmd_ip() {
+    local new_ip="${1:-}"
+    load_env
+
+    if [[ -z "$new_ip" ]]; then
+        echo ""
+        echo -e "  HOST_IP: ${BOLD}${HOST_IP:-localhost}${NC}"
+        echo ""
+        echo "  Usage: $0 ip <address|auto>"
+        echo "    <address>   Set a specific IP/hostname (e.g. Tailscale IP)"
+        echo "    auto        Auto-detect local IP"
+        echo ""
+        return 0
+    fi
+
+    # Auto-detect mode
+    if [[ "$new_ip" == "auto" ]]; then
+        new_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+        new_ip="${new_ip:-localhost}"
+        print_info "Auto-detected IP: $new_ip"
+    fi
+
+    local old_ip="${HOST_IP:-localhost}"
+    if [[ "$old_ip" == "$new_ip" ]]; then
+        print_info "HOST_IP is already: $new_ip"
+        return 0
+    fi
+
+    print_step "Switching HOST_IP: $old_ip → $new_ip"
+
+    update_env_var "HOST_IP" "$new_ip"
+    update_env_var "BOOKSTACK_APP_URL" "http://${new_ip}:${BOOKSTACK_PORT:-8875}"
+
+    # Regenerate homepage dashboard URLs
+    source "$PROJECT_ROOT/tools/install/lib/homepage.sh"
+    export HOST_IP="$new_ip"
+    build_homepage_services
+    print_success "Homepage services.yaml regenerated"
+
+    # Restart homepage to pick up new config
+    cd "$PROJECT_ROOT"
+    docker compose restart homepage
+    print_success "HOST_IP switched: $old_ip → $new_ip"
+    echo ""
+    print_info "Dashboard: http://${new_ip}"
+}
+
+cmd_build() {
+    local target="${1:-}"
+    if [[ -z "$target" ]]; then
+        echo ""
+        echo -e "  ${BOLD}Build a project from local source${NC}"
+        echo ""
+        echo "  Usage: $0 build <backend|runner>"
+        echo ""
+        return 0
+    fi
+
+    local parent_dir
+    parent_dir="$(dirname "$PROJECT_ROOT")"
+
+    case "$target" in
+        backend)  local project="ancroo-backend" ;;
+        runner)   local project="ancroo-runner" ;;
+        *)
+            print_error "Unknown build target: $target (allowed: backend, runner)"
+            return 1
+            ;;
+    esac
+
+    local build_file="$parent_dir/$project/module/compose.build.yml"
+    if [[ ! -f "$build_file" ]]; then
+        print_error "Build file not found: $build_file"
+        return 1
+    fi
+
+    load_env
+    local compose_with_build="${COMPOSE_FILE}:../${project}/module/compose.build.yml"
+
+    print_step "Building $project from local source..."
+    cd "$PROJECT_ROOT"
+    COMPOSE_FILE="$compose_with_build" docker compose build "$project"
+
+    print_step "Restarting $project..."
+    COMPOSE_FILE="$compose_with_build" docker compose up -d "$project"
+
+    print_success "$project rebuilt and restarted"
+}
+
 cmd_stt() {
     local new_engine="${1:-}"
     load_env
@@ -424,8 +513,10 @@ show_usage() {
     echo "    status              Show container status"
     echo "    verify              Run health checks"
     echo "    urls                Show service URLs"
+    echo "    ip [address|auto]   Show or switch HOST_IP (e.g. Tailscale IP)"
     echo "    gpu [mode]          Show or switch GPU mode (cpu|nvidia|rocm)"
     echo "    stt [engine]        Show or switch STT engine (speaches|whisper-rocm)"
+    echo "    build [target]      Build from local source (backend|runner)"
     echo "    rebuild-compose     Rebuild COMPOSE_FILE from current config"
     echo ""
 }
@@ -438,7 +529,9 @@ main() {
         status)           cmd_status ;;
         verify)           cmd_verify ;;
         urls)             cmd_urls ;;
+        ip)               cmd_ip "${1:-}" ;;
         gpu)              cmd_gpu "${1:-}" ;;
+        build)            cmd_build "${1:-}" ;;
         stt)              cmd_stt "${1:-}" ;;
         rebuild-compose)  rebuild_compose ;;
         help|--help|-h|"")

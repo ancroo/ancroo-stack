@@ -175,7 +175,14 @@ EOF
     # bookmarks.yaml
     cat > "$homepage_dir/bookmarks.yaml" << 'EOF'
 ---
-- Links:
+- Ancroo:
+    - Ancroo Extension:
+        - icon: si-googlechrome
+          href: https://chromewebstore.google.com/detail/ancroo/jeaaomlligaaoohplachpimjgopjmfim
+    - Ancroo GitHub:
+        - icon: si-github
+          href: https://github.com/ancroo
+- Documentation:
     - Ollama Models:
         - icon: sh-ollama
           href: https://ollama.com/library
@@ -203,6 +210,13 @@ setup_homepage() {
 copy_homepage_assets() {
     local homepage_dir="$PROJECT_ROOT/data/homepage"
     local logo_file="$PROJECT_ROOT/tools/config/homepage/images/ancroo-128.png"
+    local ico_file="$PROJECT_ROOT/tools/config/homepage/images/ancroo.ico"
+
+    # Copy favicon assets to homepage images dir
+    mkdir -p "$homepage_dir/images"
+    for src in "$PROJECT_ROOT"/tools/config/homepage/images/*; do
+        cp "$src" "$homepage_dir/images/" 2>/dev/null
+    done
 
     # Generate custom.css for branding
     cat > "$homepage_dir/custom.css" << 'CSSEOF'

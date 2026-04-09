@@ -78,6 +78,11 @@ services:
       - ./data/homepage/bookmarks.yaml:/app/src/skeleton/bookmarks.yaml:ro
       - ./data/homepage/settings.yaml:/app/src/skeleton/settings.yaml:ro
       - ./data/homepage/widgets.yaml:/app/src/skeleton/widgets.yaml:ro
+      - ./data/homepage/images/ancroo-48.png:/app/public/favicon-32x32.png:ro
+      - ./data/homepage/images/ancroo-48.png:/app/public/favicon-16x16.png:ro
+      - ./data/homepage/images/ancroo-128.png:/app/public/apple-touch-icon.png:ro
+      - ./data/homepage/images/ancroo-128.png:/app/public/android-chrome-192x192.png:ro
+      - ./data/homepage/images/ancroo.ico:/app/public/homepage.ico:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - ai-network
