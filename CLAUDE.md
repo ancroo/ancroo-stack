@@ -68,7 +68,10 @@ Each module has: `module.conf` (metadata), `compose.yml`, optional `module.env`,
 - ancroo-runner (network, plugin volume)
 
 **install.sh auto-clones:**
-- `ancroo-backend`, `ancroo-runner`, `ancroo-web`, `ancroo` (meta)
+- `ancroo-backend`, `ancroo-runner`, `ancroo-web-backend`, `ancroo` (meta)
+
+> The stack's browser extension is `ancroo-web-backend` (backend mode). The
+> standalone `ancroo-web` (direct mode, Chrome Store) is **not** part of this stack.
 
 **Sibling repo layout expected:**
 ```
@@ -76,7 +79,7 @@ Each module has: `module.conf` (metadata), `compose.yml`, optional `module.env`,
 ├── ancroo-stack/     (this repo)
 ├── ancroo-backend/   (module/ symlinked)
 ├── ancroo-runner/    (module/ symlinked)
-├── ancroo-web/       (cloned, not integrated)
+├── ancroo-web-backend/  (cloned, not integrated)
 └── ancroo/           (meta, workflow definitions)
 ```
 

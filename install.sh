@@ -26,7 +26,7 @@ PROJECT_ROOT="$SCRIPT_DIR"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="${WORKSPACE_ROOT}/ancroo-backend"
 RUNNER_DIR="${WORKSPACE_ROOT}/ancroo-runner"
-WEB_DIR="${WORKSPACE_ROOT}/ancroo-web"
+WEB_DIR="${WORKSPACE_ROOT}/ancroo-web-backend"
 META_DIR="${WORKSPACE_ROOT}/ancroo"
 
 source "$SCRIPT_DIR/tools/install/lib/common.sh"
@@ -256,21 +256,21 @@ if [[ -d "$WEB_DIR" ]]; then
     print_success "Ancroo Extension: found at ${WEB_DIR}"
 elif [[ -z "${ANCROO_NONINTERACTIVE:-}" ]] && command -v git &>/dev/null; then
     if confirm "Clone Ancroo Web Extension (browser extension)?" "n"; then
-        print_step "Cloning ancroo-web..."
-        if git clone https://github.com/ancroo/ancroo-web.git "$WEB_DIR" 2>/dev/null; then
+        print_step "Cloning ancroo-web-backend..."
+        if git clone https://github.com/ancroo/ancroo-web-backend.git "$WEB_DIR" 2>/dev/null; then
             ENABLE_EXTENSION=true
             print_success "Ancroo Extension cloned"
         else
-            print_warning "Failed to clone ancroo-web — skipping"
+            print_warning "Failed to clone ancroo-web-backend — skipping"
         fi
     fi
 elif _should_clone; then
-    print_step "Cloning ancroo-web..."
-    if git clone https://github.com/ancroo/ancroo-web.git "$WEB_DIR" 2>/dev/null; then
+    print_step "Cloning ancroo-web-backend..."
+    if git clone https://github.com/ancroo/ancroo-web-backend.git "$WEB_DIR" 2>/dev/null; then
         ENABLE_EXTENSION=true
         print_success "Ancroo Extension cloned"
     else
-        print_warning "Failed to clone ancroo-web — skipping"
+        print_warning "Failed to clone ancroo-web-backend — skipping"
     fi
 else
     print_info "Ancroo Extension: not found (${WEB_DIR}) — skipping"
@@ -655,7 +655,7 @@ if $ENABLE_EXTENSION; then
         else
             print_step "Downloading latest build artifact from GitHub Actions..."
             if gh run download \
-                --repo ancroo/ancroo-web \
+                --repo ancroo/ancroo-web-backend \
                 --name ancroo-web-extension \
                 --dir "$WEB_DIR/dist" 2>/dev/null; then
                 print_success "Ancroo extension downloaded to ${WEB_DIR}/dist/"

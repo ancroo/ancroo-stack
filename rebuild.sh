@@ -17,7 +17,7 @@ STACK_DIR="$SCRIPT_DIR"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="${WORKSPACE_ROOT}/ancroo-backend"
 RUNNER_DIR="${WORKSPACE_ROOT}/ancroo-runner"
-WEB_DIR="${WORKSPACE_ROOT}/ancroo-web"
+WEB_DIR="${WORKSPACE_ROOT}/ancroo-web-backend"
 
 source "$STACK_DIR/tools/install/lib/common.sh"
 
@@ -107,17 +107,17 @@ rebuild_docker_service() {
 # ─── Helper: rebuild browser extension ───────────────────
 rebuild_web() {
     if [[ ! -d "$WEB_DIR" ]]; then
-        print_warning "ancroo-web: project directory not found, skipping"
+        print_warning "ancroo-web-backend: project directory not found, skipping"
         return 0
     fi
 
-    print_step "Building ancroo-web extension"
+    print_step "Building ancroo-web-backend extension"
 
     if bash "$WEB_DIR/build.sh"; then
-        print_success "ancroo-web: extension built at $WEB_DIR/dist/"
+        print_success "ancroo-web-backend: extension built at $WEB_DIR/dist/"
         print_info "Reload the extension manually in Chrome"
     else
-        print_error "ancroo-web: build failed"
+        print_error "ancroo-web-backend: build failed"
         return 1
     fi
 }
