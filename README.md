@@ -15,24 +15,42 @@ Self-hosted Docker stack for AI — Ollama, Open WebUI, n8n, BookStack, speech-t
 ```mermaid
 %%{init: {'theme': 'neutral'}}%%
 graph LR
-    subgraph Stack["Ancroo Stack"]
-        ollama["Ollama<br/>LLM"]
-        webui["Open WebUI"]
-        backend["Ancroo<br/>Backend"]
+    subgraph Browser["Browser"]
+        input["Text Selection<br/>Form Data<br/>Speech / File"]
+        extension["Ancroo Web Backend<br/>Browser Extension"]
+    end
+
+    voice["Ancroo Voice"]
+    backend["Ancroo<br/>Backend"]
+    runner["Ancroo<br/>Runner"]
+
+    subgraph Services["Ancroo Stack"]
+        direction TB
+        llm["LLM (Ollama)"]
+        owui["Open WebUI"]
         n8n["n8n"]
-        stt["Speech to<br/>Text"]
+        stt["Speech to Text"]
         pg["PostgreSQL"]
     end
 
-    webui <--> ollama
-    backend <--> ollama
+    input <--> extension
+    extension <-- "Backend Mode" --> backend
+    voice <--> backend
+    backend <--> llm
+    backend <--> owui
     backend <--> n8n
     backend <--> stt
+    backend <--> runner
     backend <--> pg
 
-    style ollama fill:#fed7aa,stroke:#f97316,color:#7c2d12
-    style webui fill:#fed7aa,stroke:#f97316,color:#7c2d12
+    style Services fill:#f8fafc,stroke:#94a3b8
+    style input fill:transparent,stroke:transparent,color:#1e3a5f
+    style extension fill:#fef08a,stroke:#eab308,color:#713f12
+    style voice fill:#fef08a,stroke:#eab308,color:#713f12
     style backend fill:#d1fae5,stroke:#10b981,color:#064e3b
+    style runner fill:#d1fae5,stroke:#10b981,color:#064e3b
+    style llm fill:#fed7aa,stroke:#f97316,color:#7c2d12
+    style owui fill:#fed7aa,stroke:#f97316,color:#7c2d12
     style n8n fill:#fed7aa,stroke:#f97316,color:#7c2d12
     style stt fill:#fed7aa,stroke:#f97316,color:#7c2d12
     style pg fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f

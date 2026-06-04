@@ -28,6 +28,7 @@ internal/
 
 # Claude Code
 .claude/
+CLAUDE.md
 
 # Private keys / certificates
 *.key
