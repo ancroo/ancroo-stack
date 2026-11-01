@@ -205,7 +205,7 @@ To report a security vulnerability, please use [GitHub's private vulnerability r
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE). The Ancroo name is not covered by this license and remains the property of the author.
+Apache 2.0 — see [LICENSE](LICENSE). The Ancroo name and the anchor logo are not covered by this license and remain the property of the author.
 
 **Important:** This license covers the ancroo-stack orchestration code (shell scripts, Docker Compose files, configuration templates). Each module's software runs in its own Docker container and is governed by its own license — see [NOTICE](NOTICE) for details.
 
